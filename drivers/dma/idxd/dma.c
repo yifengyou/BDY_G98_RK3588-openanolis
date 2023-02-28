@@ -58,7 +58,7 @@ void idxd_dma_complete_txd(struct idxd_desc *desc,
 
 static void op_flag_setup(unsigned long flags, u32 *desc_flags)
 {
-	*desc_flags = IDXD_OP_FLAG_CRAV | IDXD_OP_FLAG_RCR;
+	*desc_flags = IDXD_OP_FLAG_CRAV | IDXD_OP_FLAG_RCR | IDXD_OP_FLAG_BOF;
 	if (flags & DMA_PREP_INTERRUPT)
 		*desc_flags |= IDXD_OP_FLAG_RCI;
 }
