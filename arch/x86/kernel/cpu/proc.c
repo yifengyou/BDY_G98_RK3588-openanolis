@@ -6,6 +6,7 @@
 #include <linux/cpufreq.h>
 #include <asm/prctl.h>
 #include <linux/proc_fs.h>
+#include <linux/bpf-cgroup.h>
 
 #include "cpu.h"
 
@@ -74,8 +75,21 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 	unsigned int cpu, index, total;
 	int i;
 	bool rich_container = false;
+	struct bpf_rich_container_info *info;
 
 	index = cpu = c->cpu_index;
+
+	/* Get cpu mask and check it */
+	info = kzalloc(sizeof(*info), GFP_KERNEL);
+	if (info) {
+		if (!BPF_CGROUP_RUN_PROG_RICH_CONTAINER_CPU(info, 1) &&
+					!cpumask_test_cpu(cpu, &info->cpus_mask)) {
+			kfree(info);
+			return 0;
+		}
+		kfree(info);
+	}
+
 	if (check_rich_container(cpu, &index, &rich_container, &total))
 		return 0;
 
