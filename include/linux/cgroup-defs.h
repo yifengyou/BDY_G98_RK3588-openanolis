@@ -21,6 +21,13 @@
 #include <linux/workqueue.h>
 #include <linux/bpf-cgroup-defs.h>
 #include <linux/psi_types.h>
+#include <linux/sysinfo_ext.h>
+
+struct bpf_rich_container_info {
+	cpumask_t cpus_mask;
+	struct sysinfo sysinfo;
+	struct sysinfo_ext sysinfo_ext;
+};
 
 #ifdef CONFIG_CGROUPS
 
