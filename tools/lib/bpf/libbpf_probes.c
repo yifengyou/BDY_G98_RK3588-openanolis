@@ -158,6 +158,9 @@ static int probe_prog_load(enum bpf_prog_type prog_type,
 	case BPF_PROG_TYPE_STRUCT_OPS:
 		exp_err = -524; /* -ENOTSUPP */
 		break;
+	case BPF_PROG_TYPE_CGROUP_RICH_CONTAINER:
+		opts.expected_attach_type = BPF_CGROUP_RICH_CONTAINER_CPU;
+		break;
 	case BPF_PROG_TYPE_UNSPEC:
 	case BPF_PROG_TYPE_SOCKET_FILTER:
 	case BPF_PROG_TYPE_SCHED_CLS:

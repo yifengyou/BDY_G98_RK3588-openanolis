@@ -8959,6 +8959,8 @@ static const struct bpf_sec_def section_defs[] = {
 	SEC_DEF("cgroup/getsockopt",	CGROUP_SOCKOPT, BPF_CGROUP_GETSOCKOPT, SEC_ATTACHABLE),
 	SEC_DEF("cgroup/setsockopt",	CGROUP_SOCKOPT, BPF_CGROUP_SETSOCKOPT, SEC_ATTACHABLE),
 	SEC_DEF("cgroup/dev",		CGROUP_DEVICE, BPF_CGROUP_DEVICE, SEC_ATTACHABLE_OPT),
+	SEC_DEF("cgroup/rich_container_cpu", CGROUP_RICH_CONTAINER, BPF_CGROUP_RICH_CONTAINER_CPU, SEC_ATTACHABLE),
+	SEC_DEF("cgroup/rich_container_mem", CGROUP_RICH_CONTAINER, BPF_CGROUP_RICH_CONTAINER_MEM, SEC_ATTACHABLE),
 	SEC_DEF("struct_ops+",		STRUCT_OPS, 0, SEC_NONE),
 	SEC_DEF("struct_ops.s+",	STRUCT_OPS, 0, SEC_SLEEPABLE),
 	SEC_DEF("sk_lookup",		SK_LOOKUP, BPF_SK_LOOKUP, SEC_ATTACHABLE),
@@ -9170,6 +9172,15 @@ int libbpf_prog_type_by_name(const char *name, enum bpf_prog_type *prog_type,
 
 const char *libbpf_bpf_attach_type_str(enum bpf_attach_type t)
 {
+	switch (t) {
+	case BPF_CGROUP_RICH_CONTAINER_CPU:
+		return "cgroup_rich_container_cpu";
+	case BPF_CGROUP_RICH_CONTAINER_MEM:
+		return "cgroup_rich_container_mem";
+	default:
+		break;
+	}
+
 	if (t < 0 || t >= ARRAY_SIZE(attach_type_name))
 		return NULL;
 
@@ -9194,6 +9205,13 @@ const char *libbpf_bpf_map_type_str(enum bpf_map_type t)
 
 const char *libbpf_bpf_prog_type_str(enum bpf_prog_type t)
 {
+	switch (t) {
+	case BPF_PROG_TYPE_CGROUP_RICH_CONTAINER:
+		return "cgroup_rich_container";
+	default:
+		break;
+	}
+
 	if (t < 0 || t >= ARRAY_SIZE(prog_type_name))
 		return NULL;
 
