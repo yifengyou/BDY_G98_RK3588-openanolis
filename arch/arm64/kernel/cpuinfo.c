@@ -28,6 +28,7 @@
 #include <linux/delay.h>
 #include <linux/arm-smccc.h>
 #include <linux/slab.h>
+#include <linux/bpf-cgroup.h>
 
 /*
  * In case the boot CPU is hotpluggable, we record its initial state and
@@ -206,8 +207,20 @@ static int c_show(struct seq_file *m, void *v)
 	for_each_online_cpu(i) {
 		struct cpuinfo_arm64 *cpuinfo = &per_cpu(cpu_data, i);
 		u32 midr = cpuinfo->reg_midr;
+		struct bpf_rich_container_info *info;
 
 		index = cpu = i;
+
+		/* Get cpu mask and check it */
+		info = kzalloc(sizeof(*info), GFP_KERNEL);
+		if (info) {
+			if (!BPF_CGROUP_RUN_PROG_RICH_CONTAINER_CPU(info, 1) &&
+						!cpumask_test_cpu(cpu, &info->cpus_mask)) {
+				kfree(info);
+				continue;
+			}
+			kfree(info);
+		}
 
 		if (check_rich_container(cpu, &index, &rich_container, &total))
 			continue;
