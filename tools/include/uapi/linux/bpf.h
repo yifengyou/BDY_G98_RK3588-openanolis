@@ -1005,6 +1005,8 @@ enum bpf_prog_type {
 	BPF_PROG_TYPE_SK_LOOKUP,
 	BPF_PROG_TYPE_SYSCALL, /* a program that can execute syscalls */
 	BPF_PROG_TYPE_NETFILTER,
+	/* ======== anolis own features ======== */
+	BPF_PROG_TYPE_CGROUP_RICH_CONTAINER = 0x1000,
 };
 
 enum bpf_attach_type {
@@ -1057,6 +1059,9 @@ enum bpf_attach_type {
 	BPF_TCX_INGRESS,
 	BPF_TCX_EGRESS,
 	BPF_TRACE_UPROBE_MULTI,
+	/* ======== anolis own features ======== */
+	BPF_CGROUP_RICH_CONTAINER_CPU = 0x1000,
+	BPF_CGROUP_RICH_CONTAINER_MEM,
 	__MAX_BPF_ATTACH_TYPE
 };
 
