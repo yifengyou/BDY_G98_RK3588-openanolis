@@ -746,7 +746,7 @@ static inline void tcp_fast_path_check(struct sock *sk)
 u32 tcp_delack_max(const struct sock *sk);
 
 /* Compute the actual rto_min value */
-static inline u32 tcp_rto_min(struct sock *sk)
+static inline u32 tcp_rto_min(const struct sock *sk)
 {
 	const struct dst_entry *dst = __sk_dst_get(sk);
 	u32 rto_min = inet_csk(sk)->icsk_rto_min;
@@ -756,7 +756,7 @@ static inline u32 tcp_rto_min(struct sock *sk)
 	return rto_min;
 }
 
-static inline u32 tcp_rto_min_us(struct sock *sk)
+static inline u32 tcp_rto_min_us(const struct sock *sk)
 {
 	return jiffies_to_usecs(tcp_rto_min(sk));
 }
