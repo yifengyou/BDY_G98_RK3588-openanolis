@@ -73,6 +73,13 @@ struct vfio_device {
 #ifdef CONFIG_IOMMU_LIVEUPDATE
 	u32 preserved_iommufd_token;
 #endif
+#ifdef CONFIG_DEBUG_FS
+	/*
+	 * debug_root is a static property of the vfio_device
+	 * which must be set prior to registering the vfio_device.
+	 */
+	struct dentry *debug_root;
+#endif
 };
 
 struct vfio_device *vfio_device_from_file(struct file *file);

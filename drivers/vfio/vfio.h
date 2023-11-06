@@ -466,4 +466,18 @@ static inline bool vfio_liveupdate_incoming_is_preserved(struct vfio_device *dev
 }
 #endif /* CONFIG_PCI_LIVEUPDATE */
 
+#ifdef CONFIG_VFIO_DEBUGFS
+void vfio_debugfs_create_root(void);
+void vfio_debugfs_remove_root(void);
+
+void vfio_device_debugfs_init(struct vfio_device *vdev);
+void vfio_device_debugfs_exit(struct vfio_device *vdev);
+#else
+static inline void vfio_debugfs_create_root(void) { }
+static inline void vfio_debugfs_remove_root(void) { }
+
+static inline void vfio_device_debugfs_init(struct vfio_device *vdev) { }
+static inline void vfio_device_debugfs_exit(struct vfio_device *vdev) { }
+#endif /* CONFIG_VFIO_DEBUGFS */
+
 #endif
