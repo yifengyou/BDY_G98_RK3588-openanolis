@@ -496,6 +496,7 @@ void kvm_pmu_handle_event(struct kvm_vcpu *vcpu)
 {
 	DECLARE_BITMAP(bitmap, X86_PMC_IDX_MAX);
 	struct kvm_pmu *pmu = vcpu_to_pmu(vcpu);
+	struct kvm_pmc *pmc;
 	int bit;
 
 	bitmap_copy(bitmap, pmu->reprogram_pmi, X86_PMC_IDX_MAX);
@@ -508,12 +509,7 @@ void kvm_pmu_handle_event(struct kvm_vcpu *vcpu)
 	BUILD_BUG_ON(sizeof(bitmap) != sizeof(atomic64_t));
 	atomic64_andnot(*(s64 *)bitmap, &pmu->__reprogram_pmi);
 
-	for_each_set_bit(bit, bitmap, X86_PMC_IDX_MAX) {
-		struct kvm_pmc *pmc = kvm_pmc_idx_to_pmc(pmu, bit);
-
-		if (unlikely(!pmc))
-			continue;
-
+	kvm_for_each_pmc(pmu, pmc, bit, bitmap) {
 		/*
 		 * If reprogramming fails, e.g. due to contention, re-set the
 		 * regprogram bit set, i.e. opportunistically try again on the
@@ -729,11 +725,7 @@ void kvm_pmu_reset(struct kvm_vcpu *vcpu)
 
 	bitmap_zero(pmu->reprogram_pmi, X86_PMC_IDX_MAX);
 
-	for_each_set_bit(i, pmu->all_valid_pmc_idx, X86_PMC_IDX_MAX) {
-		pmc = kvm_pmc_idx_to_pmc(pmu, i);
-		if (!pmc)
-			continue;
-
+	kvm_for_each_pmc(pmu, pmc, i, pmu->all_valid_pmc_idx) {
 		pmc_stop_counter(pmc);
 		pmc->counter = 0;
 
@@ -818,10 +810,8 @@ void kvm_pmu_cleanup(struct kvm_vcpu *vcpu)
 	bitmap_andnot(bitmask, pmu->all_valid_pmc_idx,
 		      pmu->pmc_in_use, X86_PMC_IDX_MAX);
 
-	for_each_set_bit(i, bitmask, X86_PMC_IDX_MAX) {
-		pmc = kvm_pmc_idx_to_pmc(pmu, i);
-
-		if (pmc && pmc->perf_event && !pmc_speculative_in_use(pmc))
+	kvm_for_each_pmc(pmu, pmc, i, bitmask) {
+		if (pmc->perf_event && !pmc_speculative_in_use(pmc))
 			pmc_stop_counter(pmc);
 	}
 
@@ -867,10 +857,8 @@ static void kvm_pmu_trigger_event(struct kvm_vcpu *vcpu, u64 eventsel)
 	struct kvm_pmc *pmc;
 	int i;
 
-	for_each_set_bit(i, pmu->all_valid_pmc_idx, X86_PMC_IDX_MAX) {
-		pmc = kvm_pmc_idx_to_pmc(pmu, i);
-
-		if (!pmc || !pmc_event_is_allowed(pmc))
+	kvm_for_each_pmc(pmu, pmc, i, pmu->all_valid_pmc_idx) {
+		if (!pmc_event_is_allowed(pmc))
 			continue;
 
 		/* Ignore checks for edge detect, pin control, invert and CMASK bits */
