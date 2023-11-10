@@ -21,6 +21,11 @@
 
 #define KVM_FIXED_PMC_BASE_IDX INTEL_PMC_IDX_FIXED
 
+struct kvm_pmu_emulated_event_selectors {
+	u64 INSTRUCTIONS_RETIRED;
+	u64 BRANCH_INSTRUCTIONS_RETIRED;
+};
+
 struct kvm_pmu_ops {
 	bool (*hw_event_available)(struct kvm_pmc *pmc);
 	struct kvm_pmc *(*pmc_idx_to_pmc)(struct kvm_pmu *pmu, int pmc_idx);
@@ -163,6 +168,7 @@ static inline bool pmc_speculative_in_use(struct kvm_pmc *pmc)
 }
 
 extern struct x86_pmu_capability kvm_pmu_cap;
+extern struct kvm_pmu_emulated_event_selectors kvm_pmu_eventsel;
 
 static inline void kvm_init_pmu_capability(const struct kvm_pmu_ops *pmu_ops)
 {
@@ -204,6 +210,11 @@ static inline void kvm_init_pmu_capability(const struct kvm_pmu_ops *pmu_ops)
 					  pmu_ops->MAX_NR_GP_COUNTERS);
 	kvm_pmu_cap.num_counters_fixed = min(kvm_pmu_cap.num_counters_fixed,
 					     KVM_PMC_MAX_FIXED);
+
+	kvm_pmu_eventsel.INSTRUCTIONS_RETIRED =
+		perf_get_hw_event_config(PERF_COUNT_HW_INSTRUCTIONS);
+	kvm_pmu_eventsel.BRANCH_INSTRUCTIONS_RETIRED =
+		perf_get_hw_event_config(PERF_COUNT_HW_BRANCH_INSTRUCTIONS);
 }
 
 static inline void kvm_pmu_request_counter_reprogram(struct kvm_pmc *pmc)
@@ -252,7 +263,7 @@ void kvm_pmu_init(struct kvm_vcpu *vcpu);
 void kvm_pmu_cleanup(struct kvm_vcpu *vcpu);
 void kvm_pmu_destroy(struct kvm_vcpu *vcpu);
 int kvm_vm_ioctl_set_pmu_event_filter(struct kvm *kvm, void __user *argp);
-void kvm_pmu_trigger_event(struct kvm_vcpu *vcpu, u64 perf_hw_id);
+void kvm_pmu_trigger_event(struct kvm_vcpu *vcpu, u64 eventsel);
 
 bool is_vmware_backdoor_pmc(u32 pmc_idx);
 
