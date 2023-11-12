@@ -1411,6 +1411,28 @@ __naked int checkpoint_states_deletion(void)
 	);
 }
 
+struct {
+	int data[32];
+	int n;
+} loop_data;
+
+SEC("raw_tp")
+__success
+int iter_arr_with_actual_elem_count(const void *ctx)
+{
+	int i, n = loop_data.n, sum = 0;
+
+	if (n > ARRAY_SIZE(loop_data.data))
+		return 0;
+
+	bpf_for(i, 0, n) {
+		/* no rechecking of i against ARRAY_SIZE(loop_data.n) */
+		sum += loop_data.data[i];
+	}
+
+	return sum;
+}
+
 __u32 upper, select_n, result;
 __u64 global;
 
