@@ -19,7 +19,7 @@
 
 struct acpi_handle_list {
 	u32 count;
-	acpi_handle* handles;
+	acpi_handle *handles;
 };
 
 /* acpi_utils.h */
