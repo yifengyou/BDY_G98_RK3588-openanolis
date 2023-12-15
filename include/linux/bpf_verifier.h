@@ -740,6 +740,11 @@ struct bpf_verifier_env {
 	CK_KABI_RESERVE(4)
 };
 
+static inline struct bpf_func_info_aux *subprog_aux(struct bpf_verifier_env *env, int subprog)
+{
+	return &env->prog->aux->func_info_aux[subprog];
+}
+
 static inline struct bpf_subprog_info *subprog_info(struct bpf_verifier_env *env, int subprog)
 {
 	return &env->subprog_info[subprog];
