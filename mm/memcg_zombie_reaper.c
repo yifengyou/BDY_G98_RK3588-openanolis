@@ -217,7 +217,7 @@ do_reap_zombie_memcg(struct mem_cgroup *memcg, bool background)
 	while (page_counter_read(&memcg->memory)) {
 		unsigned int ret;
 
-		ret = try_to_free_mem_cgroup_pages(memcg, 1, GFP_KERNEL, MEMCG_RECLAIM_MAY_SWAP);
+		ret = try_to_free_mem_cgroup_pages(memcg, 1, GFP_KERNEL, MEMCG_RECLAIM_MAY_SWAP, NULL);
 		did_some += ret;
 		if (ret)
 			continue;
