@@ -589,8 +589,16 @@ void kvm_arch_vm_post_create(struct kvm_vm *vm)
 	}
 }
 
-struct kvm_vcpu *vm_arch_vcpu_add(struct kvm_vm *vm, uint32_t vcpu_id,
-				  void *guest_code)
+void vcpu_arch_set_entry_point(struct kvm_vcpu *vcpu, void *guest_code)
+{
+   struct kvm_regs regs;
+
+   vcpu_regs_get(vcpu, &regs);
+   regs.rip = (unsigned long) guest_code;
+   vcpu_regs_set(vcpu, &regs);
+}
+
+struct kvm_vcpu *vm_arch_vcpu_add(struct kvm_vm *vm, uint32_t vcpu_id)
 {
 	struct kvm_mp_state mp_state;
 	struct kvm_regs regs;
@@ -624,7 +632,6 @@ struct kvm_vcpu *vm_arch_vcpu_add(struct kvm_vm *vm, uint32_t vcpu_id,
 	vcpu_regs_get(vcpu, &regs);
 	regs.rflags = regs.rflags | 0x2;
 	regs.rsp = stack_vaddr;
-	regs.rip = (unsigned long) guest_code;
 	vcpu_regs_set(vcpu, &regs);
 
 	/* Setup the MP state */
