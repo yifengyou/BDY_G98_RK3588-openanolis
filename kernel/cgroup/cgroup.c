@@ -2532,6 +2532,17 @@ static void css_account_procs(struct task_struct *task,
 	}
 }
 
+void css_account_procs_unlocked(struct task_struct *task, int num)
+{
+	unsigned long flags;
+	struct css_set *cset;
+
+	spin_lock_irqsave(&css_set_lock, flags);
+	cset = task_css_set(task);
+	css_account_procs(task, cset, num);
+	spin_unlock_irqrestore(&css_set_lock, flags);
+}
+
 /**
  * cgroup_migrate_add_task - add a migration target task to a migration context
  * @task: target task

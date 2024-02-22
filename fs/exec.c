@@ -1168,6 +1168,8 @@ static int de_thread(struct task_struct *tsk)
 		if (unlikely(leader->ptrace))
 			__wake_up_parent(leader, leader->parent);
 		write_unlock_irq(&tasklist_lock);
+		/* tsk becomes thread_group_leader now */
+		css_account_procs_unlocked(tsk, 1);
 		cgroup_threadgroup_change_end(tsk);
 
 		release_task(leader);

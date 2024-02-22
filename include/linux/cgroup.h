@@ -639,6 +639,8 @@ struct cgroup *cgroup_get_from_id(u64 id);
 
 extern struct kernfs_node *kernfs_get_active(struct kernfs_node *kn);
 extern void kernfs_put_active(struct kernfs_node *kn);
+
+extern void css_account_procs_unlocked(struct task_struct *task, int num);
 #else /* !CONFIG_CGROUPS */
 
 struct cgroup_subsys_state;
@@ -688,6 +690,10 @@ static inline bool task_under_cgroup_hierarchy(struct task_struct *task,
 
 static inline void cgroup_path_from_kernfs_id(u64 id, char *buf, size_t buflen)
 {}
+
+static inline void css_account_procs_unlocked(struct task_struct *task, int num)
+{
+}
 #endif /* !CONFIG_CGROUPS */
 
 #ifdef CONFIG_CGROUPS
