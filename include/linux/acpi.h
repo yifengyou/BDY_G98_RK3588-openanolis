@@ -134,7 +134,6 @@ enum acpi_address_range_id {
 	ACPI_ADDRESS_RANGE_COUNT
 };
 
-
 /* Table Handlers */
 typedef int (*acpi_tbl_table_handler)(struct acpi_table_header *table);
 
@@ -1599,6 +1598,23 @@ extern void acpi_device_notify_remove(struct device *dev);
 #else
 static inline void acpi_device_notify(struct device *dev) { }
 static inline void acpi_device_notify_remove(struct device *dev) { }
+#endif
+
+static inline void acpi_use_parent_companion(struct device *dev)
+{
+	ACPI_COMPANION_SET(dev, ACPI_COMPANION(dev->parent));
+}
+
+#ifdef CONFIG_ACPI_HMAT
+int hmat_update_target_coordinates(int nid, struct access_coordinate *coord,
+				   enum access_coordinate_class access);
+#else
+static inline int hmat_update_target_coordinates(int nid,
+						 struct access_coordinate *coord,
+						 enum access_coordinate_class access)
+{
+	return -EOPNOTSUPP;
+}
 #endif
 
 #endif	/*_LINUX_ACPI_H*/
