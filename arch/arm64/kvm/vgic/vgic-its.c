@@ -1441,10 +1441,10 @@ static int vgic_its_cmd_handle_invall(struct kvm *kvm, struct vgic_its *its,
 static int vgic_its_cmd_handle_movall(struct kvm *kvm, struct vgic_its *its,
 				      u64 *its_cmd)
 {
+	struct vgic_dist *dist = &kvm->arch.vgic;
 	struct kvm_vcpu *vcpu1, *vcpu2;
 	struct vgic_irq *irq;
-	u32 *intids;
-	int irq_count, i;
+	unsigned long intid;
 
 	/* We advertise GITS_TYPER.PTA==0, making the address the vcpu ID */
 	vcpu1 = kvm_get_vcpu_by_id(kvm, its_cmd_get_target_addr(its_cmd));
@@ -1456,12 +1456,8 @@ static int vgic_its_cmd_handle_movall(struct kvm *kvm, struct vgic_its *its,
 	if (vcpu1 == vcpu2)
 		return 0;
 
-	irq_count = vgic_copy_lpi_list(kvm, vcpu1, &intids);
-	if (irq_count < 0)
-		return irq_count;
-
-	for (i = 0; i < irq_count; i++) {
-		irq = vgic_get_irq(kvm, NULL, intids[i]);
+	xa_for_each(&dist->lpi_xa, intid, irq) {
+		irq = vgic_get_irq(kvm, NULL, intid);
 		if (!irq)
 			continue;
 
@@ -1472,7 +1468,6 @@ static int vgic_its_cmd_handle_movall(struct kvm *kvm, struct vgic_its *its,
 
 	vgic_its_invalidate_cache(kvm);
 
-	kfree(intids);
 	return 0;
 }
 
