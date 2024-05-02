@@ -281,7 +281,7 @@ static int handle_aliscm_doe_cmd_from_user(struct cxl_aliscm_dev *aliscm,
 
 	/* Find Data Object Exchange mailbox */
 	doe_mb = pci_find_doe_mailbox(to_pci_dev(dev),
-					  PCI_DVSEC_VENDOR_ID_CXL,
+					  PCI_VENDOR_ID_CXL,
 					  doe_header.type);
 	if (!doe_mb) {
 		dev_dbg(dev, "No DOE type %d mailbox\n", doe_header.type);
@@ -290,7 +290,7 @@ static int handle_aliscm_doe_cmd_from_user(struct cxl_aliscm_dev *aliscm,
 
 	/* Perform Data Object Exchange */
 	request += sizeof(struct pcie_doe_prot);
-	rc = pci_doe(doe_mb, PCI_DVSEC_VENDOR_ID_CXL,
+	rc = pci_doe(doe_mb, PCI_VENDOR_ID_CXL,
 		     doe_header.type,
 		     request, cmd->size_request - sizeof(struct pcie_doe_prot),
 		     cmd->response, *size_response);
@@ -329,7 +329,7 @@ static int cxl_get_dvsec_reg(struct pci_dev *pdev, u16 devsc_id, struct aliscm_c
 	if (devsc_id >= CXL_DVSEC_MAX_ID)
 		return -EINVAL;
 
-	dvsec = pci_find_dvsec_capability(pdev, PCI_DVSEC_VENDOR_ID_CXL, devsc_id);
+	dvsec = pci_find_dvsec_capability(pdev, PCI_VENDOR_ID_CXL, devsc_id);
 	if (!dvsec) {
 		dev_err(&pdev->dev, "Error, failed to find DVSEC(%d)\n", devsc_id);
 		return -ENXIO;
