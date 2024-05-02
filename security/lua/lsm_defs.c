@@ -1118,6 +1118,10 @@ LUA_LSM_INT_DEFINE1(inode_getattr, const struct path *, path)
  * inode_xattr_skipcap
  * Default: 0
  */
+LUA_LSM_INT_BOOL_DEFINE1(inode_xattr_skipcap, const char *, name)
+{
+	lua_pushstring(L, name);
+}
 
 /**
  * inode_setxattr

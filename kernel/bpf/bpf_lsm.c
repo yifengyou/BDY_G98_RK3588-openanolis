@@ -377,6 +377,7 @@ BTF_ID(func, bpf_lsm_xfrm_state_pol_flow_match)
 #ifdef CONFIG_AUDIT
 BTF_ID(func, bpf_lsm_audit_rule_known)
 #endif
+BTF_ID(func, bpf_lsm_inode_xattr_skipcap)
 BTF_SET_END(bool_lsm_hooks)
 
 int bpf_lsm_get_retval_range(const struct bpf_prog *prog,
