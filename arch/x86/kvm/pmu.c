@@ -780,7 +780,7 @@ EXPORT_SYMBOL_FOR_KVM_INTERNAL(kvm_need_rdpmc_intercept);
 void kvm_pmu_deliver_pmi(struct kvm_vcpu *vcpu)
 {
 	if (lapic_in_kernel(vcpu)) {
-		static_call_cond(kvm_x86_pmu_deliver_pmi)(vcpu);
+		static_call(kvm_x86_pmu_deliver_pmi)(vcpu);
 		kvm_apic_local_deliver(vcpu->arch.apic, APIC_LVTPC);
 	}
 }
@@ -927,7 +927,7 @@ void kvm_pmu_reset(struct kvm_vcpu *vcpu)
 	pmu->fixed_ctr_ctrl = pmu->fixed_ctr_ctrl_hw = 0;
 	pmu->global_ctrl = pmu->global_status = 0;
 
-	static_call_cond(kvm_x86_pmu_reset)(vcpu);
+	static_call(kvm_x86_pmu_reset)(vcpu);
 }
 
 
@@ -1014,7 +1014,7 @@ void kvm_pmu_cleanup(struct kvm_vcpu *vcpu)
 			pmc_stop_counter(pmc);
 	}
 
-	static_call_cond(kvm_x86_pmu_cleanup)(vcpu);
+	static_call(kvm_x86_pmu_cleanup)(vcpu);
 
 	bitmap_zero(pmu->pmc_in_use, X86_PMC_IDX_MAX);
 }
