@@ -96,20 +96,23 @@ static ssize_t pre_oom_level_store(struct kobject *kobj,
 					   struct kobj_attribute *attr,
 					   const char *buf, size_t count)
 {
-	ssize_t ret = count;
+	ssize_t ret;
 	unsigned long level;
 
 	mutex_lock(&pre_oom_mutex);
 
 	ret = kstrtoul(buf, 10, &level);
 	if (ret)
-		return ret;
+		goto out;
 
-	if (level < 0 || level > 3)
+	if (level > 3) {
 		ret = -EINVAL;
+		goto out;
+	}
 
 	adjust_oom_level(level);
 
+out:
 	mutex_unlock(&pre_oom_mutex);
 
 	return ret ?: count;
