@@ -38,6 +38,20 @@
 #define EFER_TCE		(1<<_EFER_TCE)
 #define EFER_AUTOIBRS		(1<<_EFER_AUTOIBRS)
 
+/*
+ * Architectural memory types that are common to MTRRs, PAT, VMX MSRs, etc.
+ * Most MSRs support/allow only a subset of memory types, but the values
+ * themselves are common across all relevant MSRs.
+ */
+#define X86_MEMTYPE_UC		0ull	/* Uncacheable, a.k.a. Strong Uncacheable */
+#define X86_MEMTYPE_WC		1ull	/* Write Combining */
+/* RESERVED			2 */
+/* RESERVED			3 */
+#define X86_MEMTYPE_WT		4ull	/* Write Through */
+#define X86_MEMTYPE_WP		5ull	/* Write Protected */
+#define X86_MEMTYPE_WB		6ull	/* Write Back */
+#define X86_MEMTYPE_UC_MINUS	7ull	/* Weak Uncacheabled (PAT only) */
+
 /* FRED MSRs */
 #define MSR_IA32_FRED_RSP0	0x1cc			/* Level 0 stack pointer */
 #define MSR_IA32_FRED_RSP1	0x1cd			/* Level 1 stack pointer */
@@ -1256,7 +1270,6 @@
 #define VMX_BASIC_64		0x0001000000000000LLU
 #define VMX_BASIC_MEM_TYPE_SHIFT	50
 #define VMX_BASIC_MEM_TYPE_MASK	0x003c000000000000LLU
-#define VMX_BASIC_MEM_TYPE_WB	6LLU
 #define VMX_BASIC_INOUT		0x0040000000000000LLU
 
 #define MSR_IA32_MCU_STAGING_MBOX_ADDR	0x000007a5
