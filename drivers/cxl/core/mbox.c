@@ -914,7 +914,7 @@ void cxl_event_trace_record(struct cxl_memdev *cxlmd,
 		guard(rwsem_read)(&cxl_region_rwsem);
 		guard(rwsem_read)(&cxl_dpa_rwsem);
 
-		dpa = le64_to_cpu(evt->common.phys_addr) & CXL_DPA_MASK;
+		dpa = le64_to_cpu(evt->media_hdr.phys_addr) & CXL_DPA_MASK;
 		cxlr = cxl_dpa_to_region(cxlmd, dpa);
 		if (cxlr)
 			hpa = cxl_dpa_to_hpa(cxlr, cxlmd, dpa);
@@ -924,9 +924,9 @@ void cxl_event_trace_record(struct cxl_memdev *cxlmd,
 				dev_err(cxlds->dev, "General media fatal event detected: "
 					"DPA %#llx, event_descriptor %#x, "
 					"event_type %u, transaction_type %#x\n",
-					dpa, evt->gen_media.descriptor,
-					evt->gen_media.type,
-					evt->gen_media.transaction_type);
+					dpa, evt->gen_media.media_hdr.descriptor,
+					evt->gen_media.media_hdr.type,
+					evt->gen_media.media_hdr.transaction_type);
 
 			trace_cxl_general_media(cxlmd, type, cxlr, hpa,
 						&evt->gen_media);
