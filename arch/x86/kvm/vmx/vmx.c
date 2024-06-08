@@ -2873,9 +2873,6 @@ int vmx_enable_virtualization_cpu(void)
 		return r;
 	}
 
-	if (enable_ept)
-		ept_sync_global();
-
 	return 0;
 }
 
