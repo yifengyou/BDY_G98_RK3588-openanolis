@@ -186,8 +186,10 @@ int btmtk_process_coredump(struct hci_dev *hdev, struct sk_buff *skb);
 void btmtk_fw_get_filename(char *buf, size_t size, u32 dev_id, u32 fw_ver,
 			   u32 fw_flavor);
 
+#if IS_ENABLED(CONFIG_BT_HCIBTUSB_MTK)
 int btmtk_usb_hci_wmt_sync(struct hci_dev *hdev,
 			   struct btmtk_hci_wmt_params *wmt_params);
+#endif
 #else
 
 static inline int btmtk_set_bdaddr(struct hci_dev *hdev,
