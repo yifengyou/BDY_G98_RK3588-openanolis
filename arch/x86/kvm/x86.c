@@ -9832,6 +9832,8 @@ void kvm_x86_vendor_exit(void)
 }
 EXPORT_SYMBOL_GPL(kvm_x86_vendor_exit);
 
+static inline bool kvm_vcpu_has_events(struct kvm_vcpu *vcpu);
+
 static int __kvm_emulate_halt(struct kvm_vcpu *vcpu, int state, int reason)
 {
 	/*
@@ -9843,7 +9845,10 @@ static int __kvm_emulate_halt(struct kvm_vcpu *vcpu, int state, int reason)
 	 */
 	++vcpu->stat.halt_exits;
 	if (lapic_in_kernel(vcpu)) {
-		vcpu->arch.mp_state = state;
+		if (kvm_vcpu_has_events(vcpu))
+			vcpu->arch.pv.pv_unhalted = false;
+		else
+			vcpu->arch.mp_state = state;
 		return 1;
 	} else {
 		vcpu->run->exit_reason = reason;
@@ -11277,6 +11282,24 @@ static int vcpu_run(struct kvm_vcpu *vcpu)
 
 	return r;
 }
+
+fastpath_t handle_fastpath_hlt(struct kvm_vcpu *vcpu)
+{
+	int ret;
+
+	kvm_vcpu_srcu_read_lock(vcpu);
+	ret = kvm_emulate_halt(vcpu);
+	kvm_vcpu_srcu_read_unlock(vcpu);
+
+	if (!ret)
+		return EXIT_FASTPATH_EXIT_USERSPACE;
+
+	if (kvm_vcpu_running(vcpu))
+		return EXIT_FASTPATH_REENTER_GUEST;
+
+	return EXIT_FASTPATH_EXIT_HANDLED;
+}
+EXPORT_SYMBOL_GPL(handle_fastpath_hlt);
 
 static inline int complete_emulated_io(struct kvm_vcpu *vcpu)
 {
