@@ -21,7 +21,6 @@ if VIRTUALIZATION
 config KVM_X86
 	def_tristate KVM if (KVM_INTEL != n || KVM_AMD != n)
 	depends on HAVE_KVM
-	depends on HIGH_RES_TIMERS
 	select PREEMPT_NOTIFIERS
 	select MMU_NOTIFIER
 	select KVM_ELIDE_TLB_FLUSH_IF_YOUNG
