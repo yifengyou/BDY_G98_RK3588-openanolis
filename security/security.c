@@ -32,9 +32,6 @@
 #include <net/flow.h>
 #include <net/sock.h>
 
-/* How many LSMs were built into the kernel? */
-#define LSM_COUNT (__end_lsm_info - __start_lsm_info)
-
 #define SECURITY_HOOK_ACTIVE_KEY(HOOK, IDX) security_hook_active_##HOOK##_##IDX
 
 /*
@@ -109,7 +106,7 @@ static __initdata const char *chosen_major_lsm;
 static __initconst const char *const builtin_lsm_order = CONFIG_LSM;
 
 /* Ordered list of LSMs to initialize. */
-static __initdata struct lsm_info **ordered_lsms;
+static __initdata struct lsm_info *ordered_lsms[MAX_ORDERED_LSM_COUNT + 1];
 static __initdata struct lsm_info *exclusive;
 
 #ifdef CONFIG_HAVE_STATIC_CALL
@@ -221,7 +218,8 @@ static void __init append_ordered_lsm(struct lsm_info *lsm, const char *from)
 	if (exists_ordered_lsm(lsm))
 		return;
 
-	if (WARN(last_lsm == LSM_COUNT, "%s: out of LSM static calls!?\n", from))
+	if (WARN(last_lsm == MAX_ORDERED_LSM_COUNT,
+		 "%s: out of LSM slots!?\n", from))
 		return;
 
 	/* Enable this LSM, if it is not already set. */
@@ -446,9 +444,6 @@ static void __init ordered_lsm_init(void)
 {
 	struct lsm_info **lsm;
 
-	ordered_lsms = kcalloc(LSM_COUNT + 1, sizeof(*ordered_lsms),
-			       GFP_KERNEL);
-
 	if (chosen_lsm_order) {
 		if (chosen_major_lsm) {
 			pr_warn("security=%s is ignored because it is superseded by lsm=%s\n",
@@ -496,8 +491,6 @@ static void __init ordered_lsm_init(void)
 	lsm_early_task(current);
 	for (lsm = ordered_lsms; *lsm; lsm++)
 		initialize_lsm(*lsm);
-
-	kfree(ordered_lsms);
 }
 
 int __init early_security_init(void)
