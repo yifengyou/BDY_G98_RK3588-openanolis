@@ -4844,6 +4844,7 @@ void kvm_calculate_traps(struct kvm_vcpu *vcpu)
 
 	mutex_lock(&kvm->arch.config_lock);
 	vcpu_set_hcr(vcpu);
+	vcpu_set_ich_hcr(vcpu);
 
 	if (cpus_have_final_cap(ARM64_HAS_HCX)) {
 		/*
