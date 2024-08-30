@@ -9683,7 +9683,7 @@ static int __kvm_x86_vendor_init(struct kvm_x86_init_ops *ops)
 	u64 host_pat;
 	int r, cpu;
 
-	if (kvm_x86_ops.hardware_enable) {
+	if (kvm_x86_ops.enable_virtualization_cpu) {
 		pr_err("already loaded vendor module '%s'\n", kvm_x86_ops.name);
 		return -EEXIST;
 	}
@@ -9811,7 +9811,7 @@ static int __kvm_x86_vendor_init(struct kvm_x86_init_ops *ops)
 	return 0;
 
 out_unwind_ops:
-	kvm_x86_ops.hardware_enable = NULL;
+	kvm_x86_ops.enable_virtualization_cpu = NULL;
 	static_call(kvm_x86_hardware_unsetup)();
 out_mmu_exit:
 	kvm_mmu_vendor_module_exit();
@@ -9863,7 +9863,7 @@ void kvm_x86_vendor_exit(void)
 	WARN_ON(static_branch_unlikely(&kvm_xen_enabled.key));
 #endif
 	mutex_lock(&vendor_module_lock);
-	kvm_x86_ops.hardware_enable = NULL;
+	kvm_x86_ops.enable_virtualization_cpu = NULL;
 	mutex_unlock(&vendor_module_lock);
 }
 EXPORT_SYMBOL_GPL(kvm_x86_vendor_exit);
@@ -12607,7 +12607,7 @@ int kvm_arch_enable_virtualization_cpu(void)
 	if (ret)
 		return ret;
 
-	ret = static_call(kvm_x86_hardware_enable)();
+	ret = static_call(kvm_x86_enable_virtualization_cpu)();
 	if (ret != 0)
 		return ret;
 
@@ -12689,7 +12689,7 @@ int kvm_arch_enable_virtualization_cpu(void)
 
 void kvm_arch_disable_virtualization_cpu(void)
 {
-	static_call(kvm_x86_hardware_disable)();
+	static_call(kvm_x86_disable_virtualization_cpu)();
 	drop_user_return_notifiers();
 }
 
