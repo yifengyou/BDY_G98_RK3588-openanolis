@@ -122,6 +122,7 @@ static int cxl_pmem_get_config_data(struct cxl_memdev_state *mds,
 				    struct nd_cmd_get_config_data_hdr *cmd,
 				    unsigned int buf_len)
 {
+	struct cxl_mailbox *cxl_mbox = &mds->cxlds.cxl_mbox;
 	struct cxl_mbox_get_lsa get_lsa;
 	struct cxl_mbox_cmd mbox_cmd;
 	int rc;
@@ -143,7 +144,7 @@ static int cxl_pmem_get_config_data(struct cxl_memdev_state *mds,
 		.payload_out = cmd->out_buf,
 	};
 
-	rc = cxl_internal_send_cmd(mds, &mbox_cmd);
+	rc = cxl_internal_send_cmd(cxl_mbox, &mbox_cmd);
 	cmd->status = 0;
 
 	return rc;
@@ -153,6 +154,7 @@ static int cxl_pmem_set_config_data(struct cxl_memdev_state *mds,
 				    struct nd_cmd_set_config_hdr *cmd,
 				    unsigned int buf_len)
 {
+	struct cxl_mailbox *cxl_mbox = &mds->cxlds.cxl_mbox;
 	struct cxl_mbox_set_lsa *set_lsa;
 	struct cxl_mbox_cmd mbox_cmd;
 	int rc;
@@ -179,7 +181,7 @@ static int cxl_pmem_set_config_data(struct cxl_memdev_state *mds,
 		.size_in = struct_size(set_lsa, data, cmd->in_length),
 	};
 
-	rc = cxl_internal_send_cmd(mds, &mbox_cmd);
+	rc = cxl_internal_send_cmd(cxl_mbox, &mbox_cmd);
 
 	/*
 	 * Set "firmware" status (4-packed bytes at the end of the input
