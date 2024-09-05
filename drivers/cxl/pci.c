@@ -11,6 +11,7 @@
 #include <linux/pci.h>
 #include <linux/aer.h>
 #include <linux/io.h>
+#include <cxl/mailbox.h>
 #include "cxlmem.h"
 #include "cxlpci.h"
 #include "cxl.h"
@@ -124,6 +125,7 @@ static irqreturn_t cxl_pci_mbox_irq(int irq, void *id)
 	u16 opcode;
 	struct cxl_dev_id *dev_id = id;
 	struct cxl_dev_state *cxlds = dev_id->cxlds;
+	struct cxl_mailbox *cxl_mbox = &cxlds->cxl_mbox;
 	struct cxl_memdev_state *mds = to_cxl_memdev_state(cxlds);
 
 	if (!cxl_mbox_background_complete(cxlds))
@@ -132,17 +134,17 @@ static irqreturn_t cxl_pci_mbox_irq(int irq, void *id)
 	reg = readq(cxlds->regs.mbox + CXLDEV_MBOX_BG_CMD_STATUS_OFFSET);
 	opcode = FIELD_GET(CXLDEV_MBOX_BG_CMD_COMMAND_OPCODE_MASK, reg);
 	if (opcode == CXL_MBOX_OP_SANITIZE) {
-		mutex_lock(&mds->mbox_mutex);
+		mutex_lock(&cxl_mbox->mbox_mutex);
 		if (mds->security.sanitize_node)
 			mod_delayed_work(system_wq, &mds->security.poll_dwork, 0);
-		mutex_unlock(&mds->mbox_mutex);
+		mutex_unlock(&cxl_mbox->mbox_mutex);
 	} else if (opcode == CXL_MBOX_OP_SCAN_MEDIA) {
-		mutex_lock(&mds->mbox_mutex);
+		mutex_lock(&cxl_mbox->mbox_mutex);
 		mod_delayed_work(system_wq, &mds->poison.poll_dwork, 0);
-		mutex_unlock(&mds->mbox_mutex);
+		mutex_unlock(&cxl_mbox->mbox_mutex);
 	} else {
 		/* short-circuit the wait in __cxl_pci_mbox_send_cmd() */
-		rcuwait_wake_up(&mds->mbox_wait);
+		rcuwait_wake_up(&cxl_mbox->mbox_wait);
 	}
 
 	return IRQ_HANDLED;
@@ -156,8 +158,9 @@ static void cxl_mbox_sanitize_work(struct work_struct *work)
 	struct cxl_memdev_state *mds =
 		container_of(work, typeof(*mds), security.poll_dwork.work);
 	struct cxl_dev_state *cxlds = &mds->cxlds;
+	struct cxl_mailbox *cxl_mbox = &cxlds->cxl_mbox;
 
-	mutex_lock(&mds->mbox_mutex);
+	mutex_lock(&cxl_mbox->mbox_mutex);
 	if (cxl_mbox_background_complete(cxlds)) {
 		mds->security.poll_tmo_secs = 0;
 		if (mds->security.sanitize_node)
@@ -171,7 +174,7 @@ static void cxl_mbox_sanitize_work(struct work_struct *work)
 		mds->security.poll_tmo_secs = min(15 * 60, timeout);
 		schedule_delayed_work(&mds->security.poll_dwork, timeout * HZ);
 	}
-	mutex_unlock(&mds->mbox_mutex);
+	mutex_unlock(&cxl_mbox->mbox_mutex);
 }
 
 /*
@@ -182,8 +185,9 @@ static void cxl_mbox_scan_media_work(struct work_struct *work)
 	struct cxl_memdev_state *mds =
 		container_of(work, typeof(*mds), poison.poll_dwork.work);
 	struct cxl_dev_state *cxlds = &mds->cxlds;
+	struct cxl_mailbox *cxl_mbox = &cxlds->cxl_mbox;
 
-	mutex_lock(&mds->mbox_mutex);
+	mutex_lock(&cxl_mbox->mbox_mutex);
 	if (cxl_mbox_background_complete(cxlds)) {
 		mds->poison.poll_tmo_secs = 0;
 
@@ -194,7 +198,7 @@ static void cxl_mbox_scan_media_work(struct work_struct *work)
 		mds->poison.poll_tmo_secs = min(15 * 60, timeout);
 		schedule_delayed_work(&mds->poison.poll_dwork, timeout * HZ);
 	}
-	mutex_unlock(&mds->mbox_mutex);
+	mutex_unlock(&cxl_mbox->mbox_mutex);
 }
 
 struct cxl_pci_quirk {
@@ -234,7 +238,7 @@ cxl_pci_quirk_lookup(struct pci_dev *pci, const struct cxl_pci_quirk *list)
 
 /**
  * __cxl_pci_mbox_send_cmd() - Execute a mailbox command
- * @mds: The memory device driver data
+ * @cxl_mbox: CXL mailbox context
  * @mbox_cmd: Command to send to the memory device.
  *
  * Context: Any context. Expects mbox_mutex to be held.
@@ -254,17 +258,18 @@ cxl_pci_quirk_lookup(struct pci_dev *pci, const struct cxl_pci_quirk *list)
  * not need to coordinate with each other. The driver only uses the primary
  * mailbox.
  */
-static int __cxl_pci_mbox_send_cmd(struct cxl_memdev_state *mds,
+static int __cxl_pci_mbox_send_cmd(struct cxl_mailbox *cxl_mbox,
 				   struct cxl_mbox_cmd *mbox_cmd)
 {
-	struct cxl_dev_state *cxlds = &mds->cxlds;
+	struct cxl_dev_state *cxlds = mbox_to_cxlds(cxl_mbox);
+	struct cxl_memdev_state *mds = to_cxl_memdev_state(cxlds);
 	void __iomem *payload = cxlds->regs.mbox + CXLDEV_MBOX_PAYLOAD_OFFSET;
 	struct device *dev = cxlds->dev;
 	u64 cmd_reg, status_reg;
 	size_t out_len;
 	int rc;
 
-	lockdep_assert_held(&mds->mbox_mutex);
+	lockdep_assert_held(&cxl_mbox->mbox_mutex);
 
 	/*
 	 * Here are the steps from 8.2.8.4 of the CXL 2.0 spec.
@@ -392,10 +397,10 @@ static int __cxl_pci_mbox_send_cmd(struct cxl_memdev_state *mds,
 
 		timeout = mbox_cmd->poll_interval_ms;
 		for (i = 0; i < mbox_cmd->poll_count; i++) {
-			if (rcuwait_wait_event_timeout(&mds->mbox_wait,
-				       cxl_mbox_background_complete(cxlds),
-				       TASK_UNINTERRUPTIBLE,
-				       msecs_to_jiffies(timeout)) > 0)
+			if (rcuwait_wait_event_timeout(&cxl_mbox->mbox_wait,
+						       cxl_mbox_background_complete(cxlds),
+						       TASK_UNINTERRUPTIBLE,
+						       msecs_to_jiffies(timeout)) > 0)
 				break;
 		}
 
@@ -437,7 +442,7 @@ success:
 		 */
 		size_t n;
 
-		n = min3(mbox_cmd->size_out, mds->payload_size, out_len);
+		n = min3(mbox_cmd->size_out, cxl_mbox->payload_size, out_len);
 		memcpy_fromio(mbox_cmd->payload_out, payload, n);
 		mbox_cmd->size_out = n;
 	} else {
@@ -447,14 +452,14 @@ success:
 	return 0;
 }
 
-static int cxl_pci_mbox_send(struct cxl_memdev_state *mds,
+static int cxl_pci_mbox_send(struct cxl_mailbox *cxl_mbox,
 			     struct cxl_mbox_cmd *cmd)
 {
 	int rc;
 
-	mutex_lock_io(&mds->mbox_mutex);
-	rc = __cxl_pci_mbox_send_cmd(mds, cmd);
-	mutex_unlock(&mds->mbox_mutex);
+	mutex_lock_io(&cxl_mbox->mbox_mutex);
+	rc = __cxl_pci_mbox_send_cmd(cxl_mbox, cmd);
+	mutex_unlock(&cxl_mbox->mbox_mutex);
 
 	return rc;
 }
@@ -462,6 +467,7 @@ static int cxl_pci_mbox_send(struct cxl_memdev_state *mds,
 static int cxl_pci_setup_mailbox(struct cxl_memdev_state *mds, bool irq_avail)
 {
 	struct cxl_dev_state *cxlds = &mds->cxlds;
+	struct cxl_mailbox *cxl_mbox = &cxlds->cxl_mbox;
 	const int cap = readl(cxlds->regs.mbox + CXLDEV_MBOX_CAPS_OFFSET);
 	struct device *dev = cxlds->dev;
 	unsigned long timeout;
@@ -494,8 +500,8 @@ static int cxl_pci_setup_mailbox(struct cxl_memdev_state *mds, bool irq_avail)
 		return -ETIMEDOUT;
 	}
 
-	mds->mbox_send = cxl_pci_mbox_send;
-	mds->payload_size =
+	cxl_mbox->mbox_send = cxl_pci_mbox_send;
+	cxl_mbox->payload_size =
 		1 << FIELD_GET(CXLDEV_MBOX_CAP_PAYLOAD_SIZE_MASK, cap);
 
 	/*
@@ -505,16 +511,15 @@ static int cxl_pci_setup_mailbox(struct cxl_memdev_state *mds, bool irq_avail)
 	 * there's no point in going forward. If the size is too large, there's
 	 * no harm is soft limiting it.
 	 */
-	mds->payload_size = min_t(size_t, mds->payload_size, SZ_1M);
-	if (mds->payload_size < 256) {
+	cxl_mbox->payload_size = min_t(size_t, cxl_mbox->payload_size, SZ_1M);
+	if (cxl_mbox->payload_size < 256) {
 		dev_err(dev, "Mailbox is too small (%zub)",
-			mds->payload_size);
+			cxl_mbox->payload_size);
 		return -ENXIO;
 	}
 
-	dev_dbg(dev, "Mailbox payload sized %zu", mds->payload_size);
+	dev_dbg(dev, "Mailbox payload sized %zu", cxl_mbox->payload_size);
 
-	rcuwait_init(&mds->mbox_wait);
 	INIT_DELAYED_WORK(&mds->security.poll_dwork, cxl_mbox_sanitize_work);
 	INIT_DELAYED_WORK(&mds->poison.poll_dwork, cxl_mbox_scan_media_work);
 
@@ -656,9 +661,10 @@ static void free_event_buf(void *buf)
  */
 static int cxl_mem_alloc_event_buf(struct cxl_memdev_state *mds)
 {
+	struct cxl_mailbox *cxl_mbox = &mds->cxlds.cxl_mbox;
 	struct cxl_get_event_payload *buf;
 
-	buf = kvmalloc(mds->payload_size, GFP_KERNEL);
+	buf = kvmalloc(cxl_mbox->payload_size, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
 	mds->event.buf = buf;
@@ -893,6 +899,23 @@ static int cxl_wait_for_aliscm_ready(struct cxl_dev_state *cxlds)
 	return 0;
 }
 
+static int cxl_pci_type3_init_mailbox(struct cxl_dev_state *cxlds)
+{
+	int rc;
+
+	/*
+	 * Fail the init if there's no mailbox. For a type3 this is out of spec.
+	 */
+	if (!cxlds->reg_map.device_map.mbox.valid)
+		return -ENODEV;
+
+	rc = cxl_mailbox_init(&cxlds->cxl_mbox, cxlds->dev);
+	if (rc)
+		return rc;
+
+	return 0;
+}
+
 static int cxl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	struct pci_host_bridge *host_bridge = pci_find_host_bridge(pdev->bus);
@@ -952,6 +975,10 @@ static int cxl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 				    BIT(CXL_CM_CAP_CAP_ID_RAS));
 	if (rc)
 		dev_dbg(&pdev->dev, "Failed to map RAS capability.\n");
+
+	rc = cxl_pci_type3_init_mailbox(cxlds);
+	if (rc)
+		return rc;
 
 	if (cxl_pci_quirk_lookup(pdev, cxl_quirk_list))
 		rc = cxl_wait_for_aliscm_ready(cxlds);
