@@ -2584,8 +2584,7 @@ static int csv_pin_shared_memory_locked(struct kvm_vcpu *vcpu,
 	unsigned int pg_off;
 	bool write = !(slot->flags & KVM_MEM_READONLY);
 
-	tmp_pfn = __gfn_to_pfn_memslot(slot, gfn, false, NULL, write,
-				       NULL, NULL);
+	tmp_pfn = __gfn_to_pfn_memslot(slot, gfn, false, NULL, write, NULL);
 	if (unlikely(is_error_pfn(tmp_pfn))) {
 		WARN_ONCE(1, "Invalid pfn\n");
 		return -EINVAL;
