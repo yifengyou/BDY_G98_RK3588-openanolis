@@ -3349,7 +3349,7 @@ void sev_free_vcpu(struct kvm_vcpu *vcpu)
 
 skip_vmsa_free:
 	if (svm->sev_es.ghcb)
-		kvm_vcpu_unmap(vcpu, &svm->sev_es.ghcb_map, false);
+		kvm_vcpu_unmap(vcpu, &svm->sev_es.ghcb_map);
 	if (svm->sev_es.ghcb_sa_free)
 		kvfree(svm->sev_es.ghcb_sa);
 
@@ -3632,7 +3632,7 @@ void sev_es_unmap_ghcb(struct vcpu_svm *svm)
 
 	sev_es_sync_to_ghcb(svm);
 
-	kvm_vcpu_unmap(&svm->vcpu, &svm->sev_es.ghcb_map, true);
+	kvm_vcpu_unmap(&svm->vcpu, &svm->sev_es.ghcb_map);
 	svm->sev_es.ghcb = NULL;
 }
 
