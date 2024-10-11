@@ -1541,20 +1541,12 @@ static bool tdp_mmu_need_write_protect(struct kvm_mmu_page *sp)
 	return kvm_mmu_page_ad_need_write_protect(sp) || !kvm_ad_enabled();
 }
 
-/*
- * Clear the dirty status of all the SPTEs mapping GFNs in the memslot. If
- * AD bits are enabled, this will involve clearing the dirty bit on each SPTE.
- * If AD bits are not enabled, this will require clearing the writable bit on
- * each SPTE. Returns true if an SPTE has been changed and the TLBs need to
- * be flushed.
- */
-static bool clear_dirty_gfn_range(struct kvm *kvm, struct kvm_mmu_page *root,
+static void clear_dirty_gfn_range(struct kvm *kvm, struct kvm_mmu_page *root,
 			   gfn_t start, gfn_t end)
 {
 	const u64 dbit = tdp_mmu_need_write_protect(root) ? PT_WRITABLE_MASK :
 							    shadow_dirty_mask;
 	struct tdp_iter iter;
-	bool spte_set = false;
 
 	rcu_read_lock();
 
@@ -1574,33 +1566,24 @@ retry:
 
 		if (tdp_mmu_set_spte_atomic(kvm, &iter, iter.old_spte & ~dbit))
 			goto retry;
-
-		spte_set = true;
 	}
 
 	rcu_read_unlock();
-	return spte_set;
 }
 
 /*
- * Clear the dirty status of all the SPTEs mapping GFNs in the memslot. If
- * AD bits are enabled, this will involve clearing the dirty bit on each SPTE.
- * If AD bits are not enabled, this will require clearing the writable bit on
- * each SPTE. Returns true if an SPTE has been changed and the TLBs need to
- * be flushed.
+ * Clear the dirty status (D-bit or W-bit) of all the SPTEs mapping GFNs in the
+ * memslot.
  */
-bool kvm_tdp_mmu_clear_dirty_slot(struct kvm *kvm,
+void kvm_tdp_mmu_clear_dirty_slot(struct kvm *kvm,
 				  const struct kvm_memory_slot *slot)
 {
 	struct kvm_mmu_page *root;
-	bool spte_set = false;
 
 	lockdep_assert_held_read(&kvm->mmu_lock);
 	for_each_valid_tdp_mmu_root_yield_safe(kvm, root, slot->as_id)
-		spte_set |= clear_dirty_gfn_range(kvm, root, slot->base_gfn,
-				slot->base_gfn + slot->npages);
-
-	return spte_set;
+		clear_dirty_gfn_range(kvm, root, slot->base_gfn,
+				      slot->base_gfn + slot->npages);
 }
 
 /*
