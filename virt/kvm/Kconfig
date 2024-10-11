@@ -103,6 +103,10 @@ config KVM_EXPORT_SYMBOL
        bool
        depends on ARM64
 
+config KVM_ELIDE_TLB_FLUSH_IF_YOUNG
+       depends on MMU_NOTIFIER
+       bool
+
 config KVM_GENERIC_MEMORY_ATTRIBUTES
        select KVM_GENERIC_MMU_NOTIFIER
        bool
