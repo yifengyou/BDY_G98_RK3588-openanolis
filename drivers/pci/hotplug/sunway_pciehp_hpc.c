@@ -368,7 +368,7 @@ int sunway_pciehp_check_link_status(struct controller *ctrl)
 		return -1;
 	}
 
-	pcie_update_link_speed(ctrl->pci_dev->subordinate, lnk_status);
+	__pcie_update_link_speed(ctrl->pci_dev->subordinate, lnk_status);
 
 	if (!found) {
 		ctrl_info(ctrl, "Slot(%s): No device found\n",
