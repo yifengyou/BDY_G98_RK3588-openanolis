@@ -1027,7 +1027,6 @@ enum lru_status binder_alloc_free_page(struct list_head *item,
 
 	trace_binder_unmap_kernel_end(alloc, index);
 
-	spin_lock(lock);
 	mutex_unlock(&alloc->mutex);
 	return LRU_REMOVED_RETRY;
 
