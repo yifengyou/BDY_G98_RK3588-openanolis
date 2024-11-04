@@ -1229,7 +1229,7 @@ void shrink_dentry_list(struct list_head *list)
 }
 
 static enum lru_status dentry_lru_isolate(struct list_head *item,
-		struct list_lru_one *lru, spinlock_t *lru_lock, void *arg)
+		struct list_lru_one *lru, void *arg)
 {
 	struct list_head *freeable = arg;
 	struct dentry	*dentry = container_of(item, struct dentry, d_lru);
@@ -1317,7 +1317,7 @@ long prune_dcache_sb(struct super_block *sb, struct shrink_control *sc)
  * safe because the dentry will not be released when lru lock is hold.
  */
 static enum lru_status dentry_lru_cold_count(struct list_head *item,
-			struct list_lru_one *lru, spinlock_t *lru_lock, void *arg)
+			struct list_lru_one *lru, void *arg)
 {
 	struct dentry *dentry = container_of(item, struct dentry, d_lru);
 	static int dentry_size;
@@ -1383,7 +1383,7 @@ static inline bool valid_cold_dentry_check(struct dentry *dentry)
 static __maybe_unused enum lru_status
 cold_dentry_lru_isolate_reap(struct list_head *item,
 			     struct list_lru_one *lru,
-			     spinlock_t *lru_lock, void *arg)
+			     void *arg)
 {
 	struct dentry *dentry = container_of(item, struct dentry, d_lru);
 	struct kidled_slab_param *s_param = (struct kidled_slab_param *)arg;
@@ -1445,7 +1445,7 @@ unsigned long shrink_cold_dcache(struct super_block *sb,
 #endif
 
 static enum lru_status dentry_lru_isolate_shrink(struct list_head *item,
-		struct list_lru_one *lru, spinlock_t *lru_lock, void *arg)
+		struct list_lru_one *lru, void *arg)
 {
 	struct list_head *freeable = arg;
 	struct dentry	*dentry = container_of(item, struct dentry, d_lru);

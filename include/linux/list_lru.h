@@ -202,7 +202,7 @@ void list_lru_putback(struct list_lru *lru, struct list_head *item, int nid,
 		      struct mem_cgroup *memcg);
 
 typedef enum lru_status (*list_lru_walk_cb)(struct list_head *item,
-		struct list_lru_one *list, spinlock_t *lock, void *cb_arg);
+		struct list_lru_one *list, void *cb_arg);
 
 /**
  * list_lru_walk_one: walk a list_lru, isolating and disposing freeable items.
