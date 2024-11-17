@@ -43,7 +43,7 @@ static struct vgic_irq *vgic_add_lpi(struct kvm *kvm, u32 intid,
 				     struct kvm_vcpu *vcpu)
 {
 	struct vgic_dist *dist = &kvm->arch.vgic;
-	struct vgic_irq *irq = vgic_get_irq(kvm, NULL, intid), *oldirq;
+	struct vgic_irq *irq = vgic_get_irq(kvm, intid), *oldirq;
 	unsigned long flags;
 	int ret;
 
@@ -420,7 +420,7 @@ static int its_sync_lpi_pending_table(struct kvm_vcpu *vcpu)
 			last_byte_offset = byte_offset;
 		}
 
-		irq = vgic_get_irq(vcpu->kvm, NULL, intid);
+		irq = vgic_get_irq(vcpu->kvm, intid);
 		if (!irq)
 			continue;
 
@@ -1304,7 +1304,7 @@ int vgic_its_invall(struct kvm_vcpu *vcpu)
 	unsigned long intid;
 
 	xa_for_each(&dist->lpi_xa, intid, irq) {
-		irq = vgic_get_irq(kvm, NULL, intid);
+		irq = vgic_get_irq(kvm, intid);
 		if (!irq)
 			continue;
 
@@ -1370,7 +1370,7 @@ static int vgic_its_cmd_handle_movall(struct kvm *kvm, struct vgic_its *its,
 		return 0;
 
 	xa_for_each(&dist->lpi_xa, intid, irq) {
-		irq = vgic_get_irq(kvm, NULL, intid);
+		irq = vgic_get_irq(kvm, intid);
 		if (!irq)
 			continue;
 
