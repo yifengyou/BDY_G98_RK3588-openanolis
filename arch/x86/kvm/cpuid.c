@@ -189,12 +189,7 @@ static int kvm_cpuid_check_equal(struct kvm_vcpu *vcpu, struct kvm_cpuid_entry2 
 
 	/*
 	 * Apply runtime CPUID updates to the incoming CPUID entries to avoid
-	 * false positives due mismatches on KVM-owned feature flags.  Note,
-	 * runtime CPUID updates may consume other CPUID-driven vCPU state,
-	 * e.g. KVM or Xen CPUID bases.  Updating runtime state before full
-	 * CPUID processing is functionally correct only because any change in
-	 * CPUID is disallowed, i.e. using stale data is ok because the below
-	 * checks will reject the change.
+	 * false positives due mismatches on KVM-owned feature flags.
 	 *
 	 * Note!  @e2 and @nent track the _old_ CPUID entries!
 	 */
@@ -245,28 +240,16 @@ static struct kvm_hypervisor_cpuid kvm_get_hypervisor_cpuid(struct kvm_vcpu *vcp
 	return cpuid;
 }
 
-static struct kvm_cpuid_entry2 *__kvm_find_kvm_cpuid_features(struct kvm_vcpu *vcpu,
-					      struct kvm_cpuid_entry2 *entries, int nent)
-{
-	u32 base = vcpu->arch.kvm_cpuid.base;
-
-	if (!base)
-		return NULL;
-
-	return cpuid_entry2_find(entries, nent, base | KVM_CPUID_FEATURES,
-				 KVM_CPUID_INDEX_NOT_SIGNIFICANT);
-}
-
-static struct kvm_cpuid_entry2 *kvm_find_kvm_cpuid_features(struct kvm_vcpu *vcpu)
-{
-	return __kvm_find_kvm_cpuid_features(vcpu, vcpu->arch.cpuid_entries,
-					     vcpu->arch.cpuid_nent);
-}
-
 static u32 kvm_apply_cpuid_pv_features_quirk(struct kvm_vcpu *vcpu)
 {
-	struct kvm_cpuid_entry2 *best = kvm_find_kvm_cpuid_features(vcpu);
+	struct kvm_hypervisor_cpuid kvm_cpuid;
+	struct kvm_cpuid_entry2 *best;
 
+	kvm_cpuid = kvm_get_hypervisor_cpuid(vcpu, KVM_SIGNATURE);
+	if (!kvm_cpuid.base)
+		return 0;
+
+	best = kvm_find_cpuid_entry(vcpu, kvm_cpuid.base | KVM_CPUID_FEATURES);
 	if (!best)
 		return 0;
 
@@ -487,7 +470,6 @@ static int kvm_set_cpuid(struct kvm_vcpu *vcpu, struct kvm_cpuid_entry2 *e2,
 	if (r)
 		goto err;
 
-	vcpu->arch.kvm_cpuid = kvm_get_hypervisor_cpuid(vcpu, KVM_SIGNATURE);
 #ifdef CONFIG_KVM_XEN
 	vcpu->arch.xen.cpuid = kvm_get_hypervisor_cpuid(vcpu, XEN_SIGNATURE);
 #endif
