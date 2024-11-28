@@ -4628,8 +4628,8 @@ void sev_es_recalc_msr_intercepts(struct kvm_vcpu *vcpu)
 
 	if (boot_cpu_has(X86_FEATURE_V_TSC_AUX))
 		svm_set_intercept_for_msr(vcpu, MSR_TSC_AUX, MSR_TYPE_RW,
-					  !guest_cpuid_has(vcpu, X86_FEATURE_RDTSCP) &&
-					  !guest_cpuid_has(vcpu, X86_FEATURE_RDPID));
+					  !guest_cpu_cap_has(vcpu, X86_FEATURE_RDTSCP) &&
+					  !guest_cpu_cap_has(vcpu, X86_FEATURE_RDPID));
 
 	/*
 	 * For SEV-ES, accesses to MSR_IA32_XSS should not be intercepted if

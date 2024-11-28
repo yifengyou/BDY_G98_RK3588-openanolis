@@ -8,7 +8,7 @@
 
 static inline u64 vcpu_get_perf_capabilities(struct kvm_vcpu *vcpu)
 {
-	if (!guest_cpuid_has(vcpu, X86_FEATURE_PDCM))
+	if (!guest_cpu_cap_has(vcpu, X86_FEATURE_PDCM))
 		return 0;
 
 	return vcpu->arch.perf_capabilities;

@@ -117,7 +117,7 @@ static bool intel_is_valid_msr(struct kvm_vcpu *vcpu, u32 msr)
 		ret = vcpu_get_perf_capabilities(vcpu) & PERF_CAP_PEBS_FORMAT;
 		break;
 	case MSR_IA32_DS_AREA:
-		ret = guest_cpuid_has(vcpu, X86_FEATURE_DS);
+		ret = guest_cpu_cap_has(vcpu, X86_FEATURE_DS);
 		break;
 	case MSR_PEBS_DATA_CFG:
 		perf_capabilities = vcpu_get_perf_capabilities(vcpu);

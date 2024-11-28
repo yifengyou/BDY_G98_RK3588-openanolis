@@ -22,7 +22,7 @@ static inline bool evmptr_is_valid(u64 evmptr)
 	return evmptr != EVMPTR_INVALID && evmptr != EVMPTR_MAP_PENDING;
 }
 
-static inline bool guest_cpuid_has_evmcs(struct kvm_vcpu *vcpu)
+static inline bool guest_cpu_cap_has_evmcs(struct kvm_vcpu *vcpu)
 {
 	/*
 	 * eVMCS is exposed to the guest if Hyper-V is enabled in CPUID and
