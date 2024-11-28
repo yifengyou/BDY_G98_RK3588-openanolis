@@ -994,7 +994,6 @@ void kvm_pmu_init(struct kvm_vcpu *vcpu)
 	static_call(kvm_x86_pmu_init)(vcpu);
 	pmu->event_count = 0;
 	pmu->need_cleanup = false;
-	kvm_pmu_refresh(vcpu);
 }
 
 /* Release perf_events for vPMCs that have been unused for a full time slice.  */
