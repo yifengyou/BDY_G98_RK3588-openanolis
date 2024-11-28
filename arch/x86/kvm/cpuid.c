@@ -612,6 +612,7 @@ do {									\
 	const struct cpuid_reg cpuid = x86_feature_cpuid(leaf * 32);	\
 	const u32 __maybe_unused kvm_cpu_cap_init_in_progress = leaf;	\
 	u32 kvm_cpu_cap_passthrough = 0;				\
+	u32 kvm_cpu_cap_emulated = 0;					\
 									\
 	if (leaf < NCAPINTS)						\
 		kvm_cpu_caps[leaf] &= (mask);				\
@@ -620,6 +621,7 @@ do {									\
 									\
 	kvm_cpu_caps[leaf] |= kvm_cpu_cap_passthrough;			\
 	kvm_cpu_caps[leaf] &= raw_cpuid_get(cpuid);			\
+	kvm_cpu_caps[leaf] |= kvm_cpu_cap_emulated;			\
 } while (0)
 
 /*
@@ -653,6 +655,16 @@ do {									\
 ({								\
 	KVM_VALIDATE_CPU_CAP_USAGE(name);			\
 	(IS_ENABLED(CONFIG_X86_64) ? F(name) : 0);		\
+})
+
+/*
+ * Emulated Feature - For features that KVM emulates in software irrespective
+ * of host CPU/kernel support.
+ */
+#define EMULATED_F(name)					\
+({								\
+	kvm_cpu_cap_emulated |= F(name);			\
+	F(name);						\
 })
 
 /*
@@ -716,7 +728,7 @@ void kvm_set_cpu_caps(void)
 		0 /* Reserved, DCA */ |
 		F(XMM4_1) |
 		F(XMM4_2) |
-		F(X2APIC) |
+		EMULATED_F(X2APIC) |
 		F(MOVBE) |
 		F(POPCNT) |
 		0 /* Reserved*/ |
@@ -727,8 +739,6 @@ void kvm_set_cpu_caps(void)
 		F(F16C) |
 		F(RDRAND)
 	);
-	/* KVM emulates x2apic in software irrespective of host support. */
-	kvm_cpu_cap_set(X86_FEATURE_X2APIC);
 
 	kvm_cpu_cap_init(CPUID_1_EDX,
 		F(FPU) |
@@ -762,6 +772,7 @@ void kvm_set_cpu_caps(void)
 
 	kvm_cpu_cap_init(CPUID_7_0_EBX,
 		F(FSGSBASE) |
+		EMULATED_F(TSC_ADJUST) |
 		F(SGX) |
 		F(BMI1) |
 		F(HLE) |
@@ -824,7 +835,7 @@ void kvm_set_cpu_caps(void)
 		F(AVX512_4FMAPS) |
 		F(SPEC_CTRL) |
 		F(SPEC_CTRL_SSBD) |
-		F(ARCH_CAPABILITIES) |
+		EMULATED_F(ARCH_CAPABILITIES) |
 		F(INTEL_STIBP) |
 		F(MD_CLEAR) |
 		F(AVX512_VP2INTERSECT) |
@@ -837,10 +848,6 @@ void kvm_set_cpu_caps(void)
 		F(AMX_BF16) |
 		F(FLUSH_L1D)
 	);
-
-	/* TSC_ADJUST and ARCH_CAPABILITIES are emulated in software. */
-	kvm_cpu_cap_set(X86_FEATURE_TSC_ADJUST);
-	kvm_cpu_cap_set(X86_FEATURE_ARCH_CAPABILITIES);
 
 	if (boot_cpu_has(X86_FEATURE_IBPB) && boot_cpu_has(X86_FEATURE_IBRS))
 		kvm_cpu_cap_set(X86_FEATURE_SPEC_CTRL);
@@ -1038,6 +1045,7 @@ void kvm_set_cpu_caps(void)
 		F(VERW_CLEAR) |
 		F(NULL_SEL_CLR_BASE) |
 		F(AUTOIBRS) |
+		EMULATED_F(NO_SMM_CTL_MSR) |
 		0 /* PrefetchCtlMsr */ |
 		F(PREFETCHI) |
 		F(AVX512_BMM)
@@ -1074,7 +1082,6 @@ void kvm_set_cpu_caps(void)
 		kvm_cpu_cap_set(X86_FEATURE_LFENCE_RDTSC);
 	if (!static_cpu_has_bug(X86_BUG_NULL_SEG))
 		kvm_cpu_cap_set(X86_FEATURE_NULL_SEL_CLR_BASE);
-	kvm_cpu_cap_set(X86_FEATURE_NO_SMM_CTL_MSR);
 
 	kvm_cpu_cap_init(CPUID_C000_0001_EDX,
 		F(XSTORE) |
@@ -1115,6 +1122,7 @@ EXPORT_SYMBOL_GPL(kvm_set_cpu_caps);
 #undef F
 #undef SF
 #undef X86_64_F
+#undef EMULATED_F
 #undef PASSTHROUGH_F
 #undef ALIASED_1_EDX_F
 
