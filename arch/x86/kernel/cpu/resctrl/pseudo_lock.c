@@ -144,7 +144,7 @@ int resctrl_arch_pseudo_lock_fn(void *_plr)
 	 * increase likelihood that allocated cache portion will be filled
 	 * with associated memory.
 	 */
-	native_wbinvd();
+	wbinvd();
 
 	/*
 	 * Always called with interrupts enabled. By disabling interrupts
