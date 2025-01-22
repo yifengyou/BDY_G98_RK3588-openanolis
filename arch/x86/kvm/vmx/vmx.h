@@ -788,4 +788,7 @@ static inline bool is_zhaoxin_cpu(void)
 	       boot_cpu_data.x86_vendor == X86_VENDOR_CENTAUR;
 }
 
+int vmx_init(void);
+void vmx_exit(void);
+
 #endif /* __KVM_X86_VMX_H */
