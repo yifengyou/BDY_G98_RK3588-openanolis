@@ -1549,7 +1549,13 @@ struct kvm_arch {
 
 	gfn_t gfn_direct_bits;
 
-	CK_KABI_RESERVE(1)
+	/*
+	 * Size of the CPU's dirty log buffer, i.e. VMX's PML buffer. A Zero
+	 * value indicates CPU dirty logging is unsupported or disabled in
+	 * current VM.
+	 */
+	CK_KABI_USE(1, int cpu_dirty_log_size)
+
 	CK_KABI_RESERVE(2)
 	CK_KABI_RESERVE(3)
 	CK_KABI_RESERVE(4)
@@ -1814,11 +1820,6 @@ struct kvm_x86_ops {
 
 	void (*sched_in)(struct kvm_vcpu *kvm, int cpu);
 
-	/*
-	 * Size of the CPU's dirty log buffer, i.e. VMX's PML buffer.  A zero
-	 * value indicates CPU dirty logging is unsupported or disabled.
-	 */
-	int cpu_dirty_log_size;
 	void (*update_cpu_dirty_logging)(struct kvm_vcpu *vcpu);
 
 	const struct kvm_x86_nested_ops *nested_ops;
