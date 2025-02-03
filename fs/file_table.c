@@ -384,7 +384,13 @@ struct file *alloc_file_pseudo(struct inode *inode, struct vfsmount *mnt,
 	if (IS_ERR(file)) {
 		ihold(inode);
 		path_put(&path);
+		return file;
 	}
+	/*
+	 * Disable all fsnotify events for pseudo files by default.
+	 * They may be enabled by caller with file_set_fsnotify_mode().
+	 */
+	file_set_fsnotify_mode(file, FMODE_NONOTIFY);
 	return file;
 }
 EXPORT_SYMBOL(alloc_file_pseudo);
