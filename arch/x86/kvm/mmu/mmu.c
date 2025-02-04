@@ -508,7 +508,7 @@ static bool mmu_spte_update(u64 *sptep, u64 new_spte)
 		return false;
 	}
 
-	if (!spte_has_volatile_bits(old_spte))
+	if (!spte_needs_atomic_update(old_spte))
 		__update_clear_spte_fast(sptep, new_spte);
 	else
 		old_spte = __update_clear_spte_slow(sptep, new_spte);
@@ -533,7 +533,7 @@ static u64 mmu_spte_clear_track_bits(struct kvm *kvm, u64 *sptep)
 	struct page *page;
 
 	if (!is_shadow_present_pte(old_spte) ||
-	    !spte_has_volatile_bits(old_spte))
+	    !spte_needs_atomic_update(old_spte))
 		__update_clear_spte_fast(sptep, SHADOW_NONPRESENT_VALUE);
 	else
 		old_spte = __update_clear_spte_slow(sptep, SHADOW_NONPRESENT_VALUE);
