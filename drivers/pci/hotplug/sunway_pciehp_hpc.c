@@ -333,7 +333,7 @@ int sunway_pciehp_check_link_status(struct controller *ctrl)
 	struct pci_bus *bus = pdev->bus;
 	struct pci_controller *hose = pci_bus_to_pci_controller(bus);
 	bool found, linkup;
-	u16 lnk_status;
+	u16 lnk_status, linksta2;
 
 	if (!pcie_wait_link_active(ctrl)) {
 		ctrl_info(ctrl, "Slot(%s): No link\n", slot_name(ctrl));
@@ -368,7 +368,8 @@ int sunway_pciehp_check_link_status(struct controller *ctrl)
 		return -1;
 	}
 
-	__pcie_update_link_speed(ctrl->pci_dev->subordinate, lnk_status);
+	pcie_capability_read_word(pdev, PCI_EXP_LNKSTA2, &linksta2);
+	__pcie_update_link_speed(ctrl->pci_dev->subordinate, lnk_status, linksta2);
 
 	if (!found) {
 		ctrl_info(ctrl, "Slot(%s): No device found\n",
