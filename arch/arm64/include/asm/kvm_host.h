@@ -1455,7 +1455,6 @@ static inline bool kvm_system_needs_idmapped_vectors(void)
 	return cpus_have_const_cap(ARM64_SPECTRE_V3A);
 }
 
-static inline void kvm_arch_sync_events(struct kvm *kvm) {}
 static inline void kvm_arch_sched_in(struct kvm_vcpu *vcpu, int cpu) {}
 
 void kvm_init_host_debug_data(void);

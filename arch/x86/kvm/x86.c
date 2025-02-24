@@ -12758,11 +12758,6 @@ int kvm_arch_post_init_vm(struct kvm *kvm)
 	return kvm_mmu_post_init_vm(kvm);
 }
 
-void kvm_arch_sync_events(struct kvm *kvm)
-{
-
-}
-
 /**
  * __x86_set_memory_region: Setup KVM internal memory slot
  *
