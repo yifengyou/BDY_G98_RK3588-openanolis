@@ -48,6 +48,8 @@
 
 #include "sys_regs.h"
 
+extern enum kvm_mode kvm_mode;
+
 #ifdef MODULE
 MODULE_IMPORT_NS(KVM);
 #endif
@@ -2481,6 +2483,13 @@ static int __init init_subsystems(void)
 		err = 0;
 		break;
 	default:
+		goto out;
+	}
+
+	if (kvm_mode == KVM_MODE_NV &&
+	   !(vgic_present && kvm_vgic_global_state.type == VGIC_V3)) {
+		kvm_err("NV support requires GICv3, giving up\n");
+		err = -EINVAL;
 		goto out;
 	}
 
