@@ -12860,6 +12860,7 @@ void kvm_arch_pre_destroy_vm(struct kvm *kvm)
 		cancel_delayed_work_sync(&kvm->arch.vioapic->eoi_inject);
 
 	kvm_mmu_pre_destroy_vm(kvm);
+	static_call_cond(kvm_x86_vm_pre_destroy)(kvm);
 }
 
 void kvm_arch_destroy_vm(struct kvm *kvm)
