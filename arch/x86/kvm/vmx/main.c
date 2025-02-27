@@ -278,6 +278,22 @@ static void vt_enable_smi_window(struct kvm_vcpu *vcpu)
 }
 #endif
 
+static bool vt_can_emulate_instruction(struct kvm_vcpu *vcpu, int emul_type,
+					void *insn, int insn_len)
+{
+	/*
+	 * For TDX, this can only be triggered for MMIO emulation.  Let the
+	 * guest retry after installing the SPTE with suppress #VE bit cleared,
+	 * so that the guest will receive #VE when retry.  The guest is expected
+	 * to call TDG.VP.VMCALL<MMIO> to request VMM to do MMIO emulation on
+	 * #VE.
+	 */
+	if (is_td_vcpu(vcpu))
+		return false;
+
+	return vmx_can_emulate_instruction(vcpu, emul_type, insn, insn_len);
+}
+
 static bool vt_apic_init_signal_blocked(struct kvm_vcpu *vcpu)
 {
 	/*
@@ -924,7 +940,7 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 	.enable_smi_window = vt_enable_smi_window,
 #endif
 
-	.can_emulate_instruction = vmx_can_emulate_instruction,
+	.can_emulate_instruction = vt_can_emulate_instruction,
 	.apic_init_signal_blocked = vt_apic_init_signal_blocked,
 	.migrate_timers = vmx_migrate_timers,
 
