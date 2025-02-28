@@ -1162,23 +1162,33 @@ unlock:
 }
 EXPORT_SYMBOL_GPL(io_buffer_register_bvec);
 
-void io_buffer_unregister_bvec(struct io_uring_cmd *cmd, unsigned int index,
-			       unsigned int issue_flags)
+int io_buffer_unregister_bvec(struct io_uring_cmd *cmd, unsigned int index,
+			      unsigned int issue_flags)
 {
 	struct io_ring_ctx *ctx = cmd_to_io_kiocb(cmd)->ctx;
+	int ret = 0;
 
 	io_ring_submit_lock(ctx, issue_flags);
-	if (index >= ctx->nr_user_bufs)
+	if (index >= ctx->nr_user_bufs) {
+		ret = -EINVAL;
 		goto unlock;
+	}
 	index = array_index_nospec(index, ctx->nr_user_bufs);
 
 	if (!ctx->user_bufs[index] ||
-	    !ctx->user_bufs[index]->is_kbuf)
+	    ctx->user_bufs[index] == &dummy_ubuf) {
+		ret = -EINVAL;
 		goto unlock;
+	}
+	if (!ctx->user_bufs[index]->is_kbuf) {
+		ret = -EBUSY;
+		goto unlock;
+	}
 
 	io_buffer_unmap(ctx, &ctx->user_bufs[index]);
 unlock:
 	io_ring_submit_unlock(ctx, issue_flags);
+	return ret;
 }
 EXPORT_SYMBOL_GPL(io_buffer_unregister_bvec);
 
