@@ -205,10 +205,6 @@ static int smc_ib_fill_mac(struct smc_ib_device *smcibdev, u8 ibport)
 	struct net_device *ndev;
 	int rc;
 
-	attr = rdma_get_gid_attr(smcibdev->ibdev, ibport, 0);
-	if (IS_ERR(attr))
-		return -ENODEV;
-
 	if (smc_ib_is_iwarp(ibdev, ibport)) {
 		if (!ibdev->ops.get_netdev)
 			return -ENODEV;
@@ -219,6 +215,10 @@ static int smc_ib_fill_mac(struct smc_ib_device *smcibdev, u8 ibport)
 		dev_put(ndev);
 		return 0;
 	}
+
+	attr = rdma_get_gid_attr(smcibdev->ibdev, ibport, 0);
+	if (IS_ERR(attr))
+		return -ENODEV;
 
 	rc = rdma_read_gid_l2_fields(attr, NULL, smcibdev->mac[ibport - 1]);
 	rdma_put_gid_attr(attr);
