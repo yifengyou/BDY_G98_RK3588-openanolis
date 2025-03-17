@@ -129,6 +129,7 @@ enum {
 
 #define TCP_TX_DELAY		37	/* delay outgoing packets by XX usec */
 
+#define TCP_RTO_MIN_US		45	/* min rto time in us */
 
 #define TCP_REPAIR_ON		1
 #define TCP_REPAIR_OFF		0
