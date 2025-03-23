@@ -107,6 +107,7 @@ int cxl_pci_get_bandwidth(struct pci_dev *pdev, struct access_coordinate *c);
 int cxl_port_get_switch_dport_bandwidth(struct cxl_port *port,
 				struct access_coordinate *c);
 
-int cxl_gpf_port_setup(struct device *dport_dev, struct cxl_port *port);
+
+int cxl_gpf_port_setup(struct cxl_dport *dport);
 
 #endif /* __CXL_CORE_H__ */
