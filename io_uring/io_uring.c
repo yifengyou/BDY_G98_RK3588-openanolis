@@ -1022,7 +1022,13 @@ static void __io_req_complete_post(struct io_kiocb *req, unsigned issue_flags)
 
 void io_req_complete_post(struct io_kiocb *req, unsigned issue_flags)
 {
-	if (req->ctx->task_complete && req->ctx->submitter_task != current) {
+	/*
+	 * Handle reissue via task_work. io_req_complete_post() can't handle a
+	 * REQ_F_REISSUE request and would post an extra unexpected completion,
+	 * so push it into the flush completion path instead.
+	 */
+	if ((req->ctx->task_complete && req->ctx->submitter_task != current) ||
+	    (req->flags & REQ_F_REISSUE)) {
 		req->io_task_work.func = io_req_task_complete;
 		io_req_task_work_add(req);
 	} else if (!(issue_flags & IO_URING_F_UNLOCKED) ||
