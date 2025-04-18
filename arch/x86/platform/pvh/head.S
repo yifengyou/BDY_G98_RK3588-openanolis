@@ -65,8 +65,7 @@ SYM_CODE_START_LOCAL(pvh_start_xen)
 	mov %ebx, %esi
 	mov _pa(pvh_start_info_sz), %ecx
 	shr $2,%ecx
-	rep
-	movsl
+	rep movsl
 
 	mov $_pa(early_stack_end), %esp
 
