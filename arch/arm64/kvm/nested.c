@@ -919,6 +919,8 @@ static void invalidate_vncr_va(struct kvm *kvm,
 	}
 }
 
+#define tlbi_va_s1_to_va(v)	(u64)sign_extend64((v) << 12, 48)
+
 static void compute_s1_tlbi_range(struct kvm_vcpu *vcpu, u32 inst, u64 val,
 				  struct s1e2_tlbi_scope *scope)
 {
@@ -965,7 +967,7 @@ static void compute_s1_tlbi_range(struct kvm_vcpu *vcpu, u32 inst, u64 val,
 		scope->size = ttl_to_size(FIELD_GET(TLBI_TTL_MASK, val));
 		if (!scope->size)
 			scope->size = SZ_1G;
-		scope->va = (val << 12) & ~(scope->size - 1);
+		scope->va = tlbi_va_s1_to_va(val) & ~(scope->size - 1);
 		scope->asid = FIELD_GET(TLBIR_ASID_MASK, val);
 		break;
 	case OP_TLBI_ASIDE1:
@@ -993,7 +995,7 @@ static void compute_s1_tlbi_range(struct kvm_vcpu *vcpu, u32 inst, u64 val,
 		scope->size = ttl_to_size(FIELD_GET(TLBI_TTL_MASK, val));
 		if (!scope->size)
 			scope->size = SZ_1G;
-		scope->va = (val << 12) & ~(scope->size - 1);
+		scope->va = tlbi_va_s1_to_va(val) & ~(scope->size - 1);
 		break;
 	case OP_TLBI_RVAE2:
 	case OP_TLBI_RVAE2IS:
