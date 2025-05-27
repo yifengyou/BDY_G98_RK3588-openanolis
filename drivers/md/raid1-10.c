@@ -173,3 +173,13 @@ static inline void raid1_prepare_flush_writes(struct bitmap *bitmap)
 	else
 		md_bitmap_unplug(bitmap);
 }
+
+/*
+ * bio with REQ_RAHEAD or REQ_NOWAIT can fail at anytime, before such IO is
+ * submitted to the underlying disks, hence don't record badblocks or retry
+ * in this case.
+ */
+static inline bool raid1_should_handle_error(struct bio *bio)
+{
+	return !(bio->bi_opf & (REQ_RAHEAD | REQ_NOWAIT));
+}
