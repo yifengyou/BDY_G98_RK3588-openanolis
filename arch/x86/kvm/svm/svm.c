@@ -751,11 +751,11 @@ void svm_enable_intercept_for_msr(struct kvm_vcpu *vcpu, u32 msr, int type)
 	svm->nested.force_msr_bitmap_recalc = true;
 }
 
-u32 *svm_vcpu_alloc_msrpm(void)
+void *svm_vcpu_alloc_msrpm(void)
 {
 	unsigned int order = get_order(MSRPM_SIZE);
 	struct page *pages = alloc_pages(GFP_KERNEL_ACCOUNT, order);
-	u32 *msrpm;
+	void *msrpm;
 
 	if (!pages)
 		return NULL;
@@ -815,7 +815,7 @@ void svm_set_x2apic_msr_interception(struct vcpu_svm *svm, bool intercept)
 	svm->x2avic_msrs_intercepted = intercept;
 }
 
-void svm_vcpu_free_msrpm(u32 *msrpm)
+void svm_vcpu_free_msrpm(void *msrpm)
 {
 	__free_pages(virt_to_page(msrpm), get_order(MSRPM_SIZE));
 }
@@ -1390,7 +1390,7 @@ static void svm_vcpu_free(struct kvm_vcpu *vcpu)
 	sev_free_vcpu(vcpu);
 
 	__free_page(pfn_to_page(__sme_clr(svm->vmcb01.pa) >> PAGE_SHIFT));
-	__free_pages(virt_to_page(svm->msrpm), get_order(MSRPM_SIZE));
+	svm_vcpu_free_msrpm(svm->msrpm);
 }
 
 static void svm_prepare_switch_to_guest(struct kvm_vcpu *vcpu)
