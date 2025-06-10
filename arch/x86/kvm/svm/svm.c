@@ -751,19 +751,23 @@ void svm_enable_intercept_for_msr(struct kvm_vcpu *vcpu, u32 msr, int type)
 	svm->nested.force_msr_bitmap_recalc = true;
 }
 
-void *svm_vcpu_alloc_msrpm(void)
+void *svm_alloc_permissions_map(unsigned long size, gfp_t gfp_mask)
 {
-	unsigned int order = get_order(MSRPM_SIZE);
-	struct page *pages = alloc_pages(GFP_KERNEL_ACCOUNT, order);
-	void *msrpm;
+	unsigned int order = get_order(size);
+	struct page *pages = alloc_pages(gfp_mask, order);
+	void *pm;
 
 	if (!pages)
 		return NULL;
 
-	msrpm = page_address(pages);
-	memset(msrpm, 0xff, PAGE_SIZE * (1 << order));
+	/*
+	 * Set all bits in the permissions map so that all MSR and I/O accesses
+	 * are intercepted by default.
+	 */
+	pm = page_address(pages);
+	memset(pm, 0xff, PAGE_SIZE * (1 << order));
 
-	return msrpm;
+	return pm;
 }
 
 void svm_set_x2apic_msr_interception(struct vcpu_svm *svm, bool intercept)
@@ -1009,7 +1013,7 @@ static void svm_hardware_unsetup(void)
 	for_each_possible_cpu(cpu)
 		svm_cpu_uninit(cpu);
 
-	__free_pages(pfn_to_page(iopm_base >> PAGE_SHIFT),
+	__free_pages(pfn_to_page(__sme_clr(iopm_base) >> PAGE_SHIFT),
 	get_order(IOPM_SIZE));
 	iopm_base = 0;
 }
@@ -1186,7 +1190,7 @@ static void init_vmcb(struct kvm_vcpu *vcpu)
 	if (!kvm_hlt_in_guest(vcpu->kvm))
 		svm_set_intercept(svm, INTERCEPT_HLT);
 
-	control->iopm_base_pa = __sme_set(iopm_base);
+	control->iopm_base_pa = iopm_base;
 	control->msrpm_base_pa = __sme_set(__pa(svm->msrpm));
 	control->int_ctl = V_INTR_MASKING_MASK;
 
@@ -5276,11 +5280,8 @@ static __init void svm_set_cpu_caps(void)
 
 static __init int svm_hardware_setup(void)
 {
-	int cpu;
-	struct page *iopm_pages;
 	void *iopm_va;
-	int r;
-	unsigned int order = get_order(IOPM_SIZE);
+	int cpu, r;
 
 	/*
 	 * NX is required for shadow paging and for NPT if the NX huge pages
@@ -5361,13 +5362,11 @@ static __init int svm_hardware_setup(void)
 			pr_info("LBR virtualization supported\n");
 	}
 
-	iopm_pages = alloc_pages(GFP_KERNEL, order);
-	if (!iopm_pages)
+	iopm_va = svm_alloc_permissions_map(IOPM_SIZE, GFP_KERNEL);
+	if (!iopm_va)
 		return -ENOMEM;
 
-	iopm_va = page_address(iopm_pages);
-	memset(iopm_va, 0xff, PAGE_SIZE * (1 << order));
-	iopm_base = page_to_pfn(iopm_pages) << PAGE_SHIFT;
+	iopm_base = __sme_set(__pa(iopm_va));
 
 	/*
 	 * Note, SEV setup consumes npt_enabled and enable_mmio_caching (which
