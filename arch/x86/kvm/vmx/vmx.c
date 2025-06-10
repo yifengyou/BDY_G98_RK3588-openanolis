@@ -4050,7 +4050,7 @@ void pt_update_intercept_for_msr(struct kvm_vcpu *vcpu)
 	}
 }
 
-static void vmx_recalc_msr_intercepts(struct kvm_vcpu *vcpu)
+void vmx_recalc_msr_intercepts(struct kvm_vcpu *vcpu)
 {
 	if (!cpu_has_vmx_msr_bitmap())
 		return;
@@ -4097,11 +4097,6 @@ static void vmx_recalc_msr_intercepts(struct kvm_vcpu *vcpu)
 	 * x2APIC and LBR MSR intercepts are modified on-demand and cannot be
 	 * filtered by userspace.
 	 */
-}
-
-void vmx_msr_filter_changed(struct kvm_vcpu *vcpu)
-{
-	vmx_recalc_msr_intercepts(vcpu);
 }
 
 static inline void kvm_vcpu_trigger_posted_interrupt(struct kvm_vcpu *vcpu,
@@ -8444,7 +8439,7 @@ static struct kvm_x86_ops vmx_x86_ops __initdata = {
 	.apic_init_signal_blocked = vmx_apic_init_signal_blocked,
 	.migrate_timers = vmx_migrate_timers,
 
-	.msr_filter_changed = vmx_msr_filter_changed,
+	.recalc_msr_intercepts = vmx_recalc_msr_intercepts,
 	.complete_emulated_msr = kvm_complete_insn_gp,
 
 	.vcpu_deliver_sipi_vector = kvm_vcpu_deliver_sipi_vector,

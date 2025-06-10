@@ -925,11 +925,6 @@ static void svm_recalc_msr_intercepts(struct kvm_vcpu *vcpu)
 	 */
 }
 
-static void svm_msr_filter_changed(struct kvm_vcpu *vcpu)
-{
-	svm_recalc_msr_intercepts(vcpu);
-}
-
 void svm_copy_lbrs(struct vmcb *to_vmcb, struct vmcb *from_vmcb)
 {
 	to_vmcb->save.dbgctl		= from_vmcb->save.dbgctl;
@@ -5185,7 +5180,7 @@ static struct kvm_x86_ops svm_x86_ops __initdata = {
 
 	.apic_init_signal_blocked = svm_apic_init_signal_blocked,
 
-	.msr_filter_changed = svm_msr_filter_changed,
+	.recalc_msr_intercepts = svm_recalc_msr_intercepts,
 	.complete_emulated_msr = svm_complete_emulated_msr,
 
 	.vcpu_deliver_sipi_vector = svm_vcpu_deliver_sipi_vector,
