@@ -5,10 +5,12 @@
 #ifndef _LINUX_PACKING_H
 #define _LINUX_PACKING_H
 
+#include <linux/array_size.h>
+#include <linux/bitops.h>
 #include <linux/bug.h>
+#include <linux/stddef.h>
 #include <linux/string.h>
 #include <linux/types.h>
-#include <linux/bitops.h>
 
 #define GEN_PACKED_FIELD_STRUCT(__type)		\
 	struct packed_field_ ## __type {	\
