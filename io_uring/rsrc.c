@@ -138,8 +138,11 @@ static void io_release_ubuf(void *priv)
 	struct io_mapped_ubuf *imu = priv;
 	unsigned int i;
 
-	for (i = 0; i < imu->nr_bvecs; i++)
-		unpin_user_page(imu->bvec[i].bv_page);
+	for (i = 0; i < imu->nr_bvecs; i++) {
+		struct folio *folio = page_folio(imu->bvec[i].bv_page);
+
+		unpin_folio(folio);
+	}
 }
 
 static void io_buffer_unmap(struct io_ring_ctx *ctx, struct io_mapped_ubuf **slot)
@@ -1039,8 +1042,10 @@ static int io_sqe_buffer_register(struct io_ring_ctx *ctx, struct iovec *iov,
 done:
 	if (ret) {
 		kvfree(imu);
-		if (pages)
-			unpin_user_pages(pages, nr_pages);
+		if (pages) {
+			for (i = 0; i < nr_pages; i++)
+				unpin_folio(page_folio(pages[i]));
+		}
 	}
 	kvfree(pages);
 	return ret;
