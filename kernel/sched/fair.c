@@ -1750,7 +1750,7 @@ static inline bool better_fallback_entity(struct cfs_rq *cfs_rq,
 	return entity_before(se, best);
 }
 
-static struct sched_entity *__pick_eevdf(struct cfs_rq *cfs_rq)
+static struct sched_entity *__pick_eevdf(struct cfs_rq *cfs_rq, bool protect)
 {
 	struct sched_entity *se = __pick_first_entity(cfs_rq);
 	struct rb_node *node = cfs_rq->tasks_timeline.rb_root.rb_node;
@@ -1765,7 +1765,7 @@ static struct sched_entity *__pick_eevdf(struct cfs_rq *cfs_rq)
 	if (curr && (!curr->on_rq || !entity_eligible(cfs_rq, curr)))
 		curr = NULL;
 
-	if (curr && protect_slice(curr))
+	if (curr && protect && protect_slice(curr))
 		return curr;
 
 	/*
@@ -1801,7 +1801,7 @@ found:
 	return best;
 }
 
-static struct sched_entity *id_pick_eevdf(struct cfs_rq *cfs_rq)
+static struct sched_entity *id_pick_eevdf(struct cfs_rq *cfs_rq, bool protect)
 {
 	struct sched_entity *se = __pick_first_entity(cfs_rq);
 	struct rb_node *node = cfs_rq->tasks_timeline.rb_root.rb_node;
@@ -1840,7 +1840,7 @@ static struct sched_entity *id_pick_eevdf(struct cfs_rq *cfs_rq)
 		return se;
 	}
 
-	if (best && protect_slice(best))
+	if (best && protect && protect_slice(best))
 		return best;
 
 	/*
@@ -1979,16 +1979,21 @@ found:
 	return curr;
 }
 
-static struct sched_entity *pick_eevdf(struct cfs_rq *cfs_rq)
+static struct sched_entity *pick_eevdf_protect(struct cfs_rq *cfs_rq, bool protect)
 {
 #ifdef CONFIG_GROUP_IDENTITY
 	if (sched_feat(ID_GI_STAT))
 		rq_of(cfs_rq)->last_pick_eevdf_path = 0;
 #endif
 	if (rq_on_expel(rq_of(cfs_rq)))
-		return id_pick_eevdf(cfs_rq);
+		return id_pick_eevdf(cfs_rq, protect);
 
-	return __pick_eevdf(cfs_rq);
+	return __pick_eevdf(cfs_rq, protect);
+}
+
+static struct sched_entity *pick_eevdf(struct cfs_rq *cfs_rq)
+{
+	return pick_eevdf_protect(cfs_rq, true);
 }
 
 #ifdef CONFIG_SCHED_DEBUG
@@ -2202,45 +2207,7 @@ static inline bool resched_next_slice(struct cfs_rq *cfs_rq, struct sched_entity
 	return !entity_eligible(cfs_rq, curr);
 }
 
-static inline bool do_preempt_short(struct cfs_rq *cfs_rq,
-				    struct sched_entity *pse, struct sched_entity *se)
-{
-	if (!sched_feat(PREEMPT_SHORT))
-		return false;
-
-	if (pse->slice >= se->slice)
-		return false;
-
-	if (!entity_eligible(cfs_rq, pse))
-		return false;
-
-	if (entity_before(pse, se))
-		return true;
-
-	if (!entity_eligible(cfs_rq, se))
-		return true;
-
-	return false;
-}
-
 #ifdef CONFIG_GROUP_IDENTITY
-static inline struct sched_entity *pick_eevdf_ignore_slice(struct cfs_rq *cfs_rq)
-{
-	struct sched_entity *curr = cfs_rq->curr;
-	struct sched_entity *best;
-	s64 vlag;
-
-	if (!curr || !protect_slice(curr))
-		return pick_eevdf(cfs_rq);
-
-	vlag = curr->vlag;
-	cancel_protect_slice(curr);
-	best = pick_eevdf(cfs_rq);
-	curr->vlag = vlag;
-
-	return best;
-}
-
 /*
  * Identity wakeup policy:
  *  - {high, normal} waking against low forces a reschedule. The final winner
@@ -2317,7 +2284,7 @@ static inline bool id_tick_preempt_needed(struct cfs_rq *cfs_rq,
 	if (is_highclass(curr))
 		return false;
 
-	se = pick_eevdf_ignore_slice(cfs_rq);
+	se = pick_eevdf_protect(cfs_rq, false);
 	if (!se || se == curr)
 		return false;
 
@@ -10140,6 +10107,7 @@ static void check_preempt_wakeup_fair(struct rq *rq, struct task_struct *p, int 
 	int cse_is_idle, pse_is_idle;
 	int prio_preempt;
 	bool next_buddy_marked = false;
+	bool do_preempt_short = false;
 
 	if (unlikely(se == pse))
 		return;
@@ -10191,7 +10159,7 @@ static void check_preempt_wakeup_fair(struct rq *rq, struct task_struct *p, int 
 		 * When non-idle entity preempt an idle entity,
 		 * don't give idle entity slice protection.
 		 */
-		cancel_protect_slice(se);
+		do_preempt_short = true;
 		goto preempt;
 	}
 
@@ -10220,22 +10188,22 @@ static void check_preempt_wakeup_fair(struct rq *rq, struct task_struct *p, int 
 	/*
 	 * If @p has a shorter slice than current and @p is eligible, override
 	 * current's slice protection in order to allow preemption.
-	 *
-	 * Note that even if @p does not turn out to be the most eligible
-	 * task at this moment, current's slice protection will be lost.
 	 */
-	if (do_preempt_short(cfs_rq, pse, se) || prio_preempt == 1)
-		cancel_protect_slice(se);
+	do_preempt_short = (sched_feat(PREEMPT_SHORT) && (pse->slice < se->slice)) ||
+			   prio_preempt == 1;
 
 	/*
 	 * If @p has become the most eligible task, force preemption.
 	 */
-	if (pick_eevdf(cfs_rq) == pse)
+	if (pick_eevdf_protect(cfs_rq, !do_preempt_short) == pse)
 		goto preempt;
 
 	return;
 
 preempt:
+	if (do_preempt_short)
+		cancel_protect_slice(se);
+
 	resched_curr(rq);
 }
 
