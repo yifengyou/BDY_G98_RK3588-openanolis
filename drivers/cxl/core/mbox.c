@@ -943,6 +943,15 @@ void cxl_event_trace_record(struct cxl_memdev *cxlmd,
 			if (type == CXL_EVENT_TYPE_FATAL)
 				dev_err(cxlds->dev, "DRAM fatal event detected!\n");
 
+			if (evt->dram.media_hdr.descriptor &
+			    CXL_GMER_EVT_DESC_THRESHOLD_EVENT)
+				WARN_ON_ONCE((evt->dram.media_hdr.type &
+					      CXL_DER_MEM_EVT_TYPE_AP_CME_COUNTER_EXPIRE) &&
+					     !get_unaligned_le24(evt->dram.cvme_count));
+			else
+				WARN_ON_ONCE(evt->dram.media_hdr.type &
+					     CXL_DER_MEM_EVT_TYPE_AP_CME_COUNTER_EXPIRE);
+
 			trace_cxl_dram(cxlmd, type, cxlr, hpa, &evt->dram);
 		}
 	}
