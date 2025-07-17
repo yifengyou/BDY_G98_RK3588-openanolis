@@ -928,6 +928,15 @@ void cxl_event_trace_record(struct cxl_memdev *cxlmd,
 					evt->gen_media.media_hdr.type,
 					evt->gen_media.media_hdr.transaction_type);
 
+			if (evt->gen_media.media_hdr.descriptor &
+			    CXL_GMER_EVT_DESC_THRESHOLD_EVENT)
+				WARN_ON_ONCE((evt->gen_media.media_hdr.type &
+					      CXL_GMER_MEM_EVT_TYPE_AP_CME_COUNTER_EXPIRE) &&
+					     !get_unaligned_le24(evt->gen_media.cme_count));
+			else
+				WARN_ON_ONCE(evt->gen_media.media_hdr.type &
+					     CXL_GMER_MEM_EVT_TYPE_AP_CME_COUNTER_EXPIRE);
+
 			trace_cxl_general_media(cxlmd, type, cxlr, hpa,
 						&evt->gen_media);
 		} else if (event_type == CXL_CPER_EVENT_DRAM) {
