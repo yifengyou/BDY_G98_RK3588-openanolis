@@ -52,6 +52,7 @@ static int intel_iommu_set_dirty_tracking(struct iommu_domain *domain,
 static int rwbf_quirk;
 
 static void clear_unpreserved_context_entries(struct intel_iommu *iommu);
+#define rwbf_required(iommu)	(rwbf_quirk || cap_rwbf((iommu)->cap))
 
 /*
  * set to 1 to panic kernel if can't successfully enable VT-d
@@ -1317,18 +1318,6 @@ static int domain_setup_first_level(struct intel_iommu *iommu,
 					  pt_info.gcr3_pt, flags, old);
 }
 
-static bool domain_need_iotlb_sync_map(struct dmar_domain *domain,
-				       struct intel_iommu *iommu)
-{
-	if (cap_caching_mode(iommu->cap) && intel_domain_is_ss_paging(domain))
-		return true;
-
-	if (rwbf_quirk || cap_rwbf(iommu->cap))
-		return true;
-
-	return false;
-}
-
 static int dmar_domain_attach_device(struct dmar_domain *domain,
 				     struct device *dev)
 {
@@ -1373,8 +1362,6 @@ static int dmar_domain_attach_device(struct dmar_domain *domain,
 	ret = cache_tag_assign_domain(domain, dev, IOMMU_NO_PASID);
 	if (ret)
 		goto out_block_translation;
-
-	domain->iotlb_sync_map |= domain_need_iotlb_sync_map(domain, iommu);
 
 	return 0;
 
@@ -2956,7 +2943,13 @@ intel_iommu_domain_alloc_first_stage(struct device *dev,
 	dmar_domain->iommu.nid = dev_to_node(dev);
 	dmar_domain->domain.ops = &intel_fs_paging_domain_ops;
 
-	//TODO: appears lack of one patch: dmar_domain->iotlb_sync_map = true;
+	/*
+	 * iotlb sync for map is only needed for legacy implementations that
+	 * explicitly require flushing internal write buffers to ensure memory
+	 * coherence.
+	 */
+	if (rwbf_required(iommu))
+		dmar_domain->iotlb_sync_map = true;
 
 	ret = pt_iommu_x86_64_init(&dmar_domain->fspt, &cfg, GFP_KERNEL);
 	if (ret) {
@@ -3104,6 +3097,14 @@ intel_iommu_domain_alloc_second_stage(struct device *dev,
 	if (!intel_iommu_superpage)
 		dmar_domain->domain.pgsize_bitmap = SZ_4K;
 
+	/*
+	 * Besides the internal write buffer flush, the caching mode used for
+	 * legacy nested translation (which utilizes shadowing page tables)
+	 * also requires iotlb sync on map.
+	 */
+	if (rwbf_required(iommu) || cap_caching_mode(iommu->cap))
+		dmar_domain->iotlb_sync_map = true;
+
 	return &dmar_domain->domain;
 }
 
@@ -3167,6 +3168,11 @@ static int paging_domain_compatible_first_stage(struct dmar_domain *dmar_domain,
 	if (!cap_fl1gp_support(iommu->cap) &&
 	    (dmar_domain->domain.pgsize_bitmap & SZ_1G))
 		return -EINVAL;
+
+	/* iotlb sync on map requirement */
+	if ((rwbf_required(iommu)) && !dmar_domain->iotlb_sync_map)
+		return -EINVAL;
+
 	return 0;
 }
 
@@ -3208,7 +3214,11 @@ paging_domain_compatible_second_stage(struct dmar_domain *dmar_domain,
 	if (!(sslps & BIT(1)) && (dmar_domain->domain.pgsize_bitmap & SZ_1G))
 		return -EINVAL;
 
-	//TODO: lack of patch: check dmar_domain->iotlb_sync_map
+	/* iotlb sync on map requirement */
+	if ((rwbf_required(iommu) || cap_caching_mode(iommu->cap)) &&
+	    !dmar_domain->iotlb_sync_map)
+		return -EINVAL;
+
 	/*
 	 * FIXME this is locked wrong, it needs to be under the
 	 * dmar_domain->lock
@@ -3217,6 +3227,7 @@ paging_domain_compatible_second_stage(struct dmar_domain *dmar_domain,
 	     BIT(PT_FEAT_VTDSS_FORCE_COHERENCE)) &&
 	    !ecap_sc_support(iommu->ecap))
 		return -EINVAL;
+
 	return 0;
 }
 
