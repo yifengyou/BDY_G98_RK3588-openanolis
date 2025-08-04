@@ -2,6 +2,7 @@
 /* Copyright(c) 2022 Intel Corporation. All rights reserved. */
 #include <linux/memregion.h>
 #include <linux/genalloc.h>
+#include <linux/debugfs.h>
 #include <linux/device.h>
 #include <linux/module.h>
 #include <linux/memory.h>
@@ -2956,6 +2957,100 @@ u64 cxl_dpa_to_hpa(struct cxl_region *cxlr, const struct cxl_memdev *cxlmd,
 	return hpa;
 }
 
+struct dpa_result {
+	struct cxl_memdev *cxlmd;
+	u64 dpa;
+};
+
+static int region_offset_to_dpa_result(struct cxl_region *cxlr, u64 offset,
+				       struct dpa_result *result)
+{
+	struct cxl_region_params *p = &cxlr->params;
+	struct cxl_root_decoder *cxlrd = to_cxl_root_decoder(cxlr->dev.parent);
+	struct cxl_endpoint_decoder *cxled;
+	u64 hpa, hpa_offset, dpa_offset;
+	u64 bits_upper, bits_lower;
+	u64 shifted, rem, temp;
+	u16 eig = 0;
+	u8 eiw = 0;
+	int pos;
+
+	lockdep_assert_held(&cxl_region_rwsem);
+	lockdep_assert_held(&cxl_dpa_rwsem);
+
+	/* Input validation ensures valid ways and gran */
+	granularity_to_eig(p->interleave_granularity, &eig);
+	ways_to_eiw(p->interleave_ways, &eiw);
+
+	/*
+	 * If the root decoder has an HPA to SPA callback, use it. Otherwise
+	 * CXL HPA is assumed to equal SPA.
+	 */
+	hpa = p->res->start + offset;
+	if (cxlrd->hpa_to_spa)
+		hpa = cxlrd->hpa_to_spa(cxlrd, hpa);
+	hpa_offset = hpa - p->res->start;
+
+	/*
+	 * Interleave position: CXL Spec 3.2 Section 8.2.4.20.13
+	 * eiw < 8
+	 *	Position is in the IW bits at HPA_OFFSET[IG+8+IW-1:IG+8].
+	 *	Per spec "remove IW bits starting with bit position IG+8"
+	 * eiw >= 8
+	 *	Position is not explicitly stored in HPA_OFFSET bits. It is
+	 *	derived from the modulo operation of the upper bits using
+	 *	the total number of interleave ways.
+	 */
+	if (eiw < 8) {
+		pos = (hpa_offset >> (eig + 8)) & GENMASK(eiw - 1, 0);
+	} else {
+		shifted = hpa_offset >> (eig + 8);
+		div64_u64_rem(shifted, p->interleave_ways, &rem);
+		pos = rem;
+	}
+	if (pos < 0 || pos >= p->nr_targets) {
+		dev_dbg(&cxlr->dev, "Invalid position %d for %d targets\n",
+			pos, p->nr_targets);
+		return -ENXIO;
+	}
+
+	/*
+	 * DPA offset: CXL Spec 3.2 Section 8.2.4.20.13
+	 * Lower bits [IG+7:0] pass through unchanged
+	 * (eiw < 8)
+	 *	Per spec: DPAOffset[51:IG+8] = (HPAOffset[51:IG+IW+8] >> IW)
+	 *	Clear the position bits to isolate upper section, then
+	 *	reverse the left shift by eiw that occurred during DPA->HPA
+	 * (eiw >= 8)
+	 *	Per spec: DPAOffset[51:IG+8] = HPAOffset[51:IG+IW] / 3
+	 *	Extract upper bits from the correct bit range and divide by 3
+	 *	to recover the original DPA upper bits
+	 */
+	bits_lower = hpa_offset & GENMASK_ULL(eig + 7, 0);
+	if (eiw < 8) {
+		temp = hpa_offset &= ~((u64)GENMASK(eig + eiw + 8 - 1, 0));
+		dpa_offset = temp >> eiw;
+	} else {
+		bits_upper = div64_u64(hpa_offset >> (eig + eiw), 3);
+		dpa_offset = bits_upper << (eig + 8);
+	}
+	dpa_offset |= bits_lower;
+
+	/* Look-up and return the result: a memdev and a DPA */
+	for (int i = 0; i < p->nr_targets; i++) {
+		cxled = p->targets[i];
+		if (cxled->pos != pos)
+			continue;
+		result->cxlmd = cxled_to_memdev(cxled);
+		result->dpa = cxl_dpa_resource_start(cxled) + dpa_offset;
+
+		return 0;
+	}
+	dev_err(&cxlr->dev, "No device found for position %d\n", pos);
+
+	return -ENXIO;
+}
+
 static struct lock_class_key cxl_pmem_region_key;
 
 static struct cxl_pmem_region *cxl_pmem_region_alloc(struct cxl_region *cxlr)
@@ -3415,10 +3510,123 @@ static void shutdown_notifiers(void *_cxlr)
 	unregister_mt_adistance_algorithm(&cxlr->adist_notifier);
 }
 
+static void remove_debugfs(void *dentry)
+{
+	debugfs_remove_recursive(dentry);
+}
+
+static int validate_region_offset(struct cxl_region *cxlr, u64 offset)
+{
+	struct cxl_region_params *p = &cxlr->params;
+	resource_size_t region_size;
+	u64 hpa;
+
+	region_size = resource_size(p->res);
+	if (offset >= region_size) {
+		dev_err(&cxlr->dev, "Offset %#llx exceeds region size %pa\n",
+			offset, &region_size);
+		return -EINVAL;
+	}
+
+	hpa = p->res->start + offset;
+	if (hpa < p->res->start || hpa > p->res->end) {
+		dev_err(&cxlr->dev, "HPA %#llx not in region %pr\n", hpa,
+			p->res);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int cxl_region_debugfs_poison_inject(void *data, u64 offset)
+{
+	struct dpa_result result = { .dpa = ULLONG_MAX, .cxlmd = NULL };
+	struct cxl_region *cxlr = data;
+	int rc;
+
+	rc = down_read_interruptible(&cxl_region_rwsem);
+	if (rc)
+		return rc;
+
+	rc = down_read_interruptible(&cxl_dpa_rwsem);
+	if (rc) {
+		up_read(&cxl_region_rwsem);
+		return rc;
+	}
+
+	if (validate_region_offset(cxlr, offset)) {
+		rc = -EINVAL;
+		goto out;
+	}
+
+	rc = region_offset_to_dpa_result(cxlr, offset, &result);
+	if (rc || !result.cxlmd || result.dpa == ULLONG_MAX) {
+		dev_dbg(&cxlr->dev,
+			"Failed to resolve DPA for region offset %#llx rc %d\n",
+			offset, rc);
+		rc = rc ? rc : -EINVAL;
+		goto out;
+	}
+
+	rc = cxl_inject_poison_locked(result.cxlmd, result.dpa);
+
+out:
+	up_read(&cxl_dpa_rwsem);
+	up_read(&cxl_region_rwsem);
+
+	return rc;
+}
+
+DEFINE_DEBUGFS_ATTRIBUTE(cxl_poison_inject_fops, NULL,
+			 cxl_region_debugfs_poison_inject, "%llx\n");
+
+static int cxl_region_debugfs_poison_clear(void *data, u64 offset)
+{
+	struct dpa_result result = { .dpa = ULLONG_MAX, .cxlmd = NULL };
+	struct cxl_region *cxlr = data;
+	int rc;
+
+	rc = down_read_interruptible(&cxl_region_rwsem);
+	if (rc)
+		return rc;
+
+	rc = down_read_interruptible(&cxl_dpa_rwsem);
+	if (rc) {
+		up_read(&cxl_region_rwsem);
+		return rc;
+	}
+
+	if (validate_region_offset(cxlr, offset)) {
+		rc = -EINVAL;
+		goto out;
+	}
+
+	rc = region_offset_to_dpa_result(cxlr, offset, &result);
+	if (rc || !result.cxlmd || result.dpa == ULLONG_MAX) {
+		dev_dbg(&cxlr->dev,
+			"Failed to resolve DPA for region offset %#llx rc %d\n",
+			offset, rc);
+		rc = rc ? rc : -EINVAL;
+		goto out;
+	}
+
+	rc = cxl_clear_poison_locked(result.cxlmd, result.dpa);
+
+out:
+	up_read(&cxl_dpa_rwsem);
+	up_read(&cxl_region_rwsem);
+
+	return rc;
+}
+
+DEFINE_DEBUGFS_ATTRIBUTE(cxl_poison_clear_fops, NULL,
+			 cxl_region_debugfs_poison_clear, "%llx\n");
+
 static int cxl_region_probe(struct device *dev)
 {
 	struct cxl_region *cxlr = to_cxl_region(dev);
 	struct cxl_region_params *p = &cxlr->params;
+	bool poison_supported = true;
 	int rc;
 
 	rc = down_read_interruptible(&cxl_region_rwsem);
@@ -3461,6 +3669,31 @@ out:
 	rc = devm_add_action_or_reset(&cxlr->dev, shutdown_notifiers, cxlr);
 	if (rc)
 		return rc;
+
+	/* Create poison attributes if all memdevs support the capabilities */
+	for (int i = 0; i < p->nr_targets; i++) {
+		struct cxl_endpoint_decoder *cxled = p->targets[i];
+		struct cxl_memdev *cxlmd = cxled_to_memdev(cxled);
+
+		if (!cxl_memdev_has_poison_cmd(cxlmd, CXL_POISON_ENABLED_INJECT) ||
+		    !cxl_memdev_has_poison_cmd(cxlmd, CXL_POISON_ENABLED_CLEAR)) {
+			poison_supported = false;
+			break;
+		}
+	}
+
+	if (poison_supported) {
+		struct dentry *dentry;
+
+		dentry = cxl_debugfs_create_dir(dev_name(dev));
+		debugfs_create_file("inject_poison", 0200, dentry, cxlr,
+				    &cxl_poison_inject_fops);
+		debugfs_create_file("clear_poison", 0200, dentry, cxlr,
+				    &cxl_poison_clear_fops);
+		rc = devm_add_action_or_reset(dev, remove_debugfs, dentry);
+		if (rc)
+			return rc;
+	}
 
 	switch (cxlr->mode) {
 	case CXL_DECODER_PMEM:
