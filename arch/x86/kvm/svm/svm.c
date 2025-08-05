@@ -4079,20 +4079,24 @@ static int svm_vcpu_pre_run(struct kvm_vcpu *vcpu)
 static fastpath_t svm_exit_handlers_fastpath(struct kvm_vcpu *vcpu)
 {
 	struct vcpu_svm *svm = to_svm(vcpu);
+	struct vmcb_control_area *control = &svm->vmcb->control;
 
 	/*
 	 * Next RIP must be provided as IRQs are disabled, and accessing guest
 	 * memory to decode the instruction might fault, i.e. might sleep.
 	 */
-	if (!nrips || !svm->vmcb->control.next_rip)
+	if (!nrips || !control->next_rip)
 		return EXIT_FASTPATH_NONE;
 
 	if (is_guest_mode(vcpu))
 		return EXIT_FASTPATH_NONE;
 
-	if (svm->vmcb->control.exit_code == SVM_EXIT_MSR &&
-	    svm->vmcb->control.exit_info_1)
+	switch (control->exit_code) {
+	case SVM_EXIT_MSR:
+		if (!control->exit_info_1)
+			break;
 		return handle_fastpath_set_msr_irqoff(vcpu);
+	}
 
 	return EXIT_FASTPATH_NONE;
 }
