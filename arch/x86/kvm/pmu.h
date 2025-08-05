@@ -182,7 +182,7 @@ static inline void pmc_update_sample_period(struct kvm_pmc *pmc)
 			  get_sample_period(pmc, pmc->counter));
 }
 
-static inline bool pmc_speculative_in_use(struct kvm_pmc *pmc)
+static inline bool pmc_is_locally_enabled(struct kvm_pmc *pmc)
 {
 	struct kvm_pmu *pmu = pmc_to_pmu(pmc);
 
