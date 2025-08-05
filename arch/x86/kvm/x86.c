@@ -2171,7 +2171,6 @@ fastpath_t handle_fastpath_set_msr_irqoff(struct kvm_vcpu *vcpu)
 {
 	u64 data = kvm_read_edx_eax(vcpu);
 	u32 msr = kvm_rcx_read(vcpu);
-	int r;
 
 	switch (msr) {
 	case APIC_BASE_MSR + (APIC_ICR >> 4):
@@ -2186,13 +2185,12 @@ fastpath_t handle_fastpath_set_msr_irqoff(struct kvm_vcpu *vcpu)
 		return EXIT_FASTPATH_NONE;
 	}
 
-	kvm_vcpu_srcu_read_lock(vcpu);
-	r = kvm_skip_emulated_instruction(vcpu);
-	kvm_vcpu_srcu_read_unlock(vcpu);
-
 	trace_kvm_msr_write(msr, data);
 
-	return r ? EXIT_FASTPATH_REENTER_GUEST : EXIT_FASTPATH_EXIT_USERSPACE;
+	if (!kvm_skip_emulated_instruction(vcpu))
+		return EXIT_FASTPATH_EXIT_USERSPACE;
+
+	return EXIT_FASTPATH_REENTER_GUEST;
 }
 EXPORT_SYMBOL_GPL(handle_fastpath_set_msr_irqoff);
 
@@ -11285,13 +11283,7 @@ static int vcpu_run(struct kvm_vcpu *vcpu)
 
 fastpath_t handle_fastpath_hlt(struct kvm_vcpu *vcpu)
 {
-	int ret;
-
-	kvm_vcpu_srcu_read_lock(vcpu);
-	ret = kvm_emulate_halt(vcpu);
-	kvm_vcpu_srcu_read_unlock(vcpu);
-
-	if (!ret)
+	if (!kvm_emulate_halt(vcpu))
 		return EXIT_FASTPATH_EXIT_USERSPACE;
 
 	if (kvm_vcpu_running(vcpu))
