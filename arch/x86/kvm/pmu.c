@@ -427,7 +427,7 @@ static bool is_fixed_event_allowed(struct kvm_x86_pmu_event_filter *filter,
 	return true;
 }
 
-static bool check_pmu_event_filter(struct kvm_pmc *pmc)
+static bool pmc_is_event_allowed(struct kvm_pmc *pmc)
 {
 	struct kvm_x86_pmu_event_filter *filter;
 	struct kvm *kvm = pmc->vcpu->kvm;
@@ -452,7 +452,7 @@ static int reprogram_counter(struct kvm_pmc *pmc)
 	pmc_pause_counter(pmc);
 
 	if (!pmc_is_globally_enabled(pmc) || !pmc_is_locally_enabled(pmc) ||
-	    !check_pmu_event_filter(pmc))
+	    !pmc_is_event_allowed(pmc))
 		return 0;
 
 	if (pmc->counter < pmc->prev_counter)
@@ -910,7 +910,7 @@ static void kvm_pmu_trigger_event(struct kvm_vcpu *vcpu,
 		return;
 
 	kvm_for_each_pmc(pmu, pmc, i, bitmap) {
-		if (!check_pmu_event_filter(pmc) || !cpl_is_matched(pmc))
+		if (!pmc_is_event_allowed(pmc) || !cpl_is_matched(pmc))
 			continue;
 
 		kvm_pmu_incr_counter(pmc);
