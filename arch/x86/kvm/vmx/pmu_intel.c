@@ -86,7 +86,7 @@ static inline u64 vcpu_get_perf_capabilities(struct kvm_vcpu *vcpu)
 
 static inline bool fw_writes_is_enabled(struct kvm_vcpu *vcpu)
 {
-	return (vcpu_get_perf_capabilities(vcpu) & PMU_CAP_FW_WRITES) != 0;
+	return (vcpu_get_perf_capabilities(vcpu) & PERF_CAP_FW_WRITES) != 0;
 }
 
 static inline struct kvm_pmc *get_fw_gp_pmc(struct kvm_pmu *pmu, u32 msr)
@@ -509,7 +509,7 @@ static void intel_pmu_refresh(struct kvm_vcpu *vcpu)
 
 	perf_capabilities = vcpu_get_perf_capabilities(vcpu);
 	if (cpuid_model_is_consistent(vcpu) &&
-	    (perf_capabilities & PMU_CAP_LBR_FMT))
+	    (perf_capabilities & PERF_CAP_LBR_FMT))
 		x86_perf_get_lbr(&lbr_desc->records);
 	else
 		lbr_desc->records.nr = 0;
