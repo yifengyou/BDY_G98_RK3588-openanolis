@@ -95,6 +95,7 @@ extern struct module __this_module;
 #define EXPORT_SYMBOL_NS_GPL(sym, ns)	__EXPORT_SYMBOL(sym, "GPL", __stringify(ns))
 
 #define EXPORT_SYMBOL_GPL_FOR_MODULES(sym, mods) __EXPORT_SYMBOL(sym, "GPL", "module:" mods)
+#define EXPORT_SYMBOL_FOR_MODULES(sym, mods) __EXPORT_SYMBOL(sym, "GPL", "module:" mods)
 
 #ifdef CONFIG_KVM_EXPORT_SYMBOL
 #define EXPORT_SYMBOL_FOR_KVM(sym)	EXPORT_SYMBOL_NS(sym, KVM)
