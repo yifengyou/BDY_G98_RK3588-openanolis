@@ -446,6 +446,22 @@ void iommu_put_msi_cookie(struct iommu_domain *domain)
 	kfree(cookie);
 }
 
+#ifdef CONFIG_UB_UMMU_CORE
+struct iova_domain *iommu_get_iova_domain(struct iommu_domain *domain)
+{
+	struct iommu_dma_cookie *cookie;
+
+	if (!domain)
+		return NULL;
+
+	cookie = domain->iova_cookie;
+	if (!cookie)
+		return NULL;
+
+	return &cookie->iovad;
+}
+#endif
+
 /**
  * iommu_dma_get_resv_regions - Reserved region driver helper
  * @dev: Device from iommu_get_resv_regions()
