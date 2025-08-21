@@ -10,6 +10,9 @@
 
 #include "ummu_core_priv.h"
 
+LIST_HEAD(core_device_list);
+EXPORT_SYMBOL_NS_GPL(core_device_list, UMMU_CORE_INTERNAL);
+
 struct ummu_core_device *global_core_device;
 EXPORT_SYMBOL_NS_GPL(global_core_device, UMMU_CORE_INTERNAL);
 
