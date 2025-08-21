@@ -316,6 +316,8 @@ static struct iommu_domain *iommu_sva_domain_alloc(struct device *dev,
 	domain->iopf_handler = iommu_sva_iopf_handler;
 #ifdef CONFIG_IOMMU_KSVA
 	domain->isolated_pasid = IOMMU_NO_PASID;
+	if (iommu_is_ksva_domain(domain))
+		domain->iopf_handler = NULL;
 #endif
 
 	return domain;
@@ -416,6 +418,54 @@ void iommu_sva_unbind_device_isolated(struct iommu_sva *handle)
 }
 EXPORT_SYMBOL_GPL(iommu_sva_unbind_device_isolated);
 
+/**
+ * iommu_ksva_bind_device() - Create a bond for the kernel address space and a
+ *			      device.
+ * @dev: the device to bind
+ * @data: driver-specific data for this binding
+ *
+ * This function lets devices safely access the kernel address space by an
+ * isolated pasid provided by iommu_sva_bind_device_ioslated. The access is
+ * protected by permisson grant operations.
+ *
+ * On error, returns an ERR_PTR value.
+ */
+struct iommu_sva *iommu_ksva_bind_device(struct device *dev, void *data)
+{
+	const struct iommu_perm_ops *perm_ops;
+	struct iommu_sva *handle;
+
+	handle = iommu_sva_bind_device_isolated(dev, &init_mm, data);
+	if (IS_ERR(handle))
+		return handle;
+
+	perm_ops = handle->handle.domain->perm_ops;
+	if (!perm_ops || !perm_ops->grant || !perm_ops->ungrant) {
+		iommu_ksva_unbind_device(handle);
+		return ERR_PTR(-EOPNOTSUPP);
+	}
+
+	return handle;
+}
+EXPORT_SYMBOL_GPL(iommu_ksva_bind_device);
+
+/**
+ * iommu_ksva_unbind_device() - Remove a ksva bond created with isolated bond
+ * @handle: the handle returned by iommu_ksva_bind_device()
+ *
+ * Release the bond and related private pasid.
+ */
+void iommu_ksva_unbind_device(struct iommu_sva *handle)
+{
+	struct iommu_domain *domain = handle->handle.domain;
+
+	if (WARN_ON(domain->mm != &init_mm))
+		return;
+
+	iommu_sva_unbind_device_isolated(handle);
+}
+EXPORT_SYMBOL_GPL(iommu_ksva_unbind_device);
+
 u32 iommu_sva_get_isolated_pasid(struct iommu_sva *handle)
 {
 	struct iommu_domain *domain = handle->handle.domain;
@@ -474,4 +524,10 @@ int iommu_sva_ungrant(struct iommu_sva *sva, void *va, size_t size,
 	return ret;
 }
 EXPORT_SYMBOL_GPL(iommu_sva_ungrant);
+
+bool iommu_is_ksva_domain(struct iommu_domain *domain)
+{
+	return domain->mm == &init_mm;
+}
+EXPORT_SYMBOL_GPL(iommu_is_ksva_domain);
 #endif

@@ -1878,6 +1878,10 @@ int iommu_sva_grant(struct iommu_sva *sva, void *va, size_t size, int perm,
 		    void *cookie);
 int iommu_sva_ungrant(struct iommu_sva *sva, void *va, size_t size,
 		      void *cookie);
+struct iommu_sva *iommu_ksva_bind_device(struct device *dev, void *data);
+void iommu_ksva_unbind_device(struct iommu_sva *handle);
+bool iommu_is_ksva_domain(struct iommu_domain *domain);
+
 static inline void iommu_plb_sync_all(struct iommu_domain *domain)
 {
 	if (domain->perm_ops && domain->perm_ops->plb_sync_all)
@@ -1916,5 +1920,17 @@ static inline int iommu_sva_ungrant(struct iommu_sva *sva, void *va,
 static inline void iommu_plb_sync_all(struct iommu_domain *domain) {}
 static inline void iommu_plb_sync(struct iommu_domain *domain,
 				struct iommu_plb_gather *plb_gather) {}
+
+static inline struct iommu_sva *iommu_ksva_bind_device(struct device *dev,
+						       void *data)
+{
+	return ERR_PTR(-ENODEV);
+}
+
+static inline void iommu_ksva_unbind_device(struct iommu_sva *handle) {}
+static inline bool iommu_is_ksva_domain(struct iommu_domain *domain)
+{
+	return false;
+}
 #endif /* CONFIG_IOMMU_KSVA */
 #endif /* __LINUX_IOMMU_H */
