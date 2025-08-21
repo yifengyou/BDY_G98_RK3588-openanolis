@@ -11,6 +11,7 @@
 #include "iommu-priv.h"
 
 static DEFINE_MUTEX(iommu_sva_lock);
+static DEFINE_MUTEX(iommu_sva_grant_lock);
 static struct iommu_domain *iommu_sva_domain_alloc(struct device *dev,
 						   struct mm_struct *mm);
 
@@ -422,4 +423,55 @@ u32 iommu_sva_get_isolated_pasid(struct iommu_sva *handle)
 	return domain->isolated_pasid;
 }
 EXPORT_SYMBOL_GPL(iommu_sva_get_isolated_pasid);
+
+/**
+ * iommu_sva_grant() - grant sva access permission with specific cookie
+ * @sva: iommu sva handler
+ * @va: grant va/kva
+ * @size: grant size
+ * @perm: the access permission. drivers define permission type/value.
+ * @cookie: grant with specific cookie.
+ *
+ */
+int iommu_sva_grant(struct iommu_sva *sva, void *va, size_t size, int perm,
+		    void *cookie)
+{
+	struct iommu_domain *domain = sva->handle.domain;
+	struct iommu_plb_gather plb_gather;
+	int ret;
+
+	if (!domain->perm_ops || !domain->perm_ops->grant)
+		return -EOPNOTSUPP;
+
+	mutex_lock(&iommu_sva_grant_lock);
+	ret = domain->perm_ops->grant(domain, va, size, perm, cookie,
+					&plb_gather);
+	if (!ret)
+		iommu_plb_sync(domain, &plb_gather);
+
+	mutex_unlock(&iommu_sva_grant_lock);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(iommu_sva_grant);
+
+int iommu_sva_ungrant(struct iommu_sva *sva, void *va, size_t size,
+		      void *cookie)
+{
+	struct iommu_domain *domain = sva->handle.domain;
+	struct iommu_plb_gather plb_gather;
+	int ret;
+
+	if (!domain->perm_ops || !domain->perm_ops->ungrant)
+		return -EOPNOTSUPP;
+
+	mutex_lock(&iommu_sva_grant_lock);
+	ret = domain->perm_ops->ungrant(domain, va, size, cookie,
+					&plb_gather);
+	if (!ret)
+		iommu_plb_sync(domain, &plb_gather);
+
+	mutex_unlock(&iommu_sva_grant_lock);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(iommu_sva_ungrant);
 #endif
