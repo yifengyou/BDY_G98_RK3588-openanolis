@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: GPL-2.0+
+
+config UB_UMMU_CORE
+	bool "UMMU Framework Builtin API"
+	default n
+	depends on UB_UBUS
+	help
+	  Enable the UMMU framework and configure this config, as the kernel
+	  provides the basic functionality for using UB features. This config
+	  is built-in by default if you are using UB features.
+	  Say 'Y' here if you are using UB.
+
+if UB_UMMU_CORE
+config UB_UMMU_CORE_DRIVER
+	tristate "UMMU Framework Modular API"
+	default n
+	help
+	  The configuration is flexible and depends on how the ummu driver
+	  intends to utilize this feature. This configuration option
+	  encompasses various features that the driver may use.
+	  If the driver wishes to employ the UB feature, this
+	  configuration must be enabled.
+	  Select 'M' to build these features as a loadable kernel module.
+endif
