@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0+
 
-ummu_core_builtin-y := core_iova.o
+ummu_core_builtin-y := core_iova.o \
+	core_eid.o \
+	core_common.o
 
 obj-$(CONFIG_UB_UMMU_CORE) += ummu_core_builtin.o
