@@ -4564,6 +4564,7 @@ static int arm_smmu_device_hw_probe(struct arm_smmu_device *smmu)
 	/* SID/SSID sizes */
 	smmu->ssid_bits = FIELD_GET(IDR1_SSIDSIZE, reg);
 	smmu->sid_bits = FIELD_GET(IDR1_SIDSIZE, reg);
+	smmu->iommu.min_pasids = 0;
 	smmu->iommu.max_pasids = 1UL << smmu->ssid_bits;
 
 	/*

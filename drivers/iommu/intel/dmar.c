@@ -1183,8 +1183,10 @@ static int alloc_iommu(struct dmar_drhd_unit *drhd)
 	 * A value of N in PSS field of eCap register indicates hardware
 	 * supports PASID field of N+1 bits.
 	 */
-	if (pasid_supported(iommu))
+	if (pasid_supported(iommu)) {
+		iommu->iommu.min_pasids = 0;
 		iommu->iommu.max_pasids = 2UL << ecap_pss(iommu->ecap);
+	}
 
 	/*
 	 * This is only for hotplug; at boot time intel_iommu_enabled won't
