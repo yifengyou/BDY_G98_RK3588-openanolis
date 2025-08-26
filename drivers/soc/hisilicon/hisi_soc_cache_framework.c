@@ -204,10 +204,17 @@ static int __hisi_soc_cache_maintain(unsigned long __user vaddr, size_t size,
 	if (mnt_type >= HISI_CACHE_MAINT_MAKEINVALID)
 		return -EINVAL;
 
-	mmap_read_lock_killable(current->mm);
+	/* Prevent overflow of vaddr + size. */
+	if (!size || vaddr + size < vaddr)
+		return -EINVAL;
+
+	ret = mmap_read_lock_killable(current->mm);
+	if (ret)
+	    return ret;
 
 	vma = vma_lookup(current->mm, vaddr);
-	if (!vma || vaddr + size > vma->vm_end || !size) {
+
+	if (!range_in_vma(vma, vaddr, vaddr + size)) {
 		ret = -EINVAL;
 		goto out;
 	}
