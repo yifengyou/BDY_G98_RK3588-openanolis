@@ -157,6 +157,22 @@ static void early_detect_mem_encrypt(struct cpuinfo_x86 *c)
 	/* Check whether SME or CSV is supported */
 	if (!(eax & (BIT(0) | BIT(1))))
 		return;
+	/*
+	 * Mark using WBINVD is needed during kexec on processors that
+	 * support SME. This provides support for performing a successful
+	 * kexec when going from SME inactive to SME active (or vice-versa).
+	 *
+	 * The cache must be cleared so that if there are entries with the
+	 * same physical address, both with and without the encryption bit,
+	 * they don't race each other when flushed and potentially end up
+	 * with the wrong entry being committed to memory.
+	 *
+	 * Test the CPUID bit directly because with mem_encrypt=off the
+	 * BSP will clear the X86_FEATURE_SME bit and the APs will not
+	 * see it set after that.
+	 */
+	if (eax & BIT(0))
+		__this_cpu_write(cache_state_incoherent, true);
 
 	/* If BIOS has not enabled SME then don't advertise the SME feature. */
 	rdmsrl(MSR_AMD64_SYSCFG, msr);
