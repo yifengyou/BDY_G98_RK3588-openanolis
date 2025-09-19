@@ -323,6 +323,7 @@ struct ub_bus_controller {
 
 	u32 ctl_no;
 	struct message_device *mdev;
+	struct ub_decoder *decoder;
 	struct list_head resources;
 	struct list_head node;
 	struct list_head devs;
