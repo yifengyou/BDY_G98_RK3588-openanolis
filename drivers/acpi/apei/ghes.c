@@ -47,7 +47,7 @@
 #include <linux/ras.h>
 #include <linux/set_memory.h>
 #include <linux/task_work.h>
-
+#include <ub/ubus/uber.h>
 #include <acpi/actbl1.h>
 #include <acpi/ghes.h>
 #include <acpi/apei.h>
@@ -682,6 +682,18 @@ static void ghes_handle_aer(struct acpi_hest_generic_data *gdata)
 #endif
 }
 
+static void ghes_handle_ubus_err(struct acpi_hest_generic_data *gdata)
+{
+	struct cper_sec_ubus *ubus_err = acpi_hest_get_payload(gdata);
+	ub_ras_recover_func_t ras_recover_func;
+
+	ras_recover_func = ub_ras_get_recover_func();
+	if (ras_recover_func)
+		ras_recover_func(ubus_err, gdata->error_severity);
+	else
+		pr_warn(GHES_PFX "UBUS error occurs when the ras driver is not loaded.\n");
+}
+
 static BLOCKING_NOTIFIER_HEAD(vendor_record_notify_list);
 
 int ghes_register_vendor_record_notifier(struct notifier_block *nb)
@@ -866,8 +878,9 @@ static void ghes_do_proc(struct ghes *ghes,
 
 			arch_apei_report_pcie_error(sec_sev, pcie_err);
 			ghes_handle_aer(gdata);
-		}
-		else if (guid_equal(sec_type, &CPER_SEC_PROC_ARM)) {
+		} else if (guid_equal(sec_type, &CPER_SEC_UBUS)) {
+			ghes_handle_ubus_err(gdata);
+		} else if (guid_equal(sec_type, &CPER_SEC_PROC_ARM)) {
 			queued = ghes_handle_arm_hw_error(gdata, sev, sync);
 		} else if (guid_equal(sec_type, &CPER_SEC_CXL_GEN_MEDIA_GUID)) {
 			struct cxl_cper_event_rec *rec = acpi_hest_get_payload(gdata);
