@@ -1476,7 +1476,7 @@ static int do_cdx_entry(const char *filename, void *symval,
 }
 
 #ifdef CONFIG_UB
-/* Looks like: ub:vNdNmvNmNcN. */
+/* Looks like: ub:vNdNmvNmNcN or <prefix>_ub:vNdNmvNmNcN. */
 static int do_ub_entry(const char *filename, void *symval, char *alias)
 {
 	/* Class code field can be divided into these two. */
@@ -1493,6 +1493,9 @@ static int do_ub_entry(const char *filename, void *symval, char *alias)
 	switch (override_only) {
 	case 0:
 		strcpy(alias, "ub:");
+		break;
+	case UB_ID_F_VFIO_DRIVER_OVERRIDE:
+		strcpy(alias, "vfio_ub:");
 		break;
 	default:
 		warn("Unknown UB driver_override alias %08X\n",
