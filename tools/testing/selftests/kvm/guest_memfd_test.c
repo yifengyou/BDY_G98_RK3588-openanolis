@@ -26,6 +26,8 @@
 #include "test_util.h"
 #include "ucall_common.h"
 
+static size_t page_size;
+
 static void test_file_read_write(int fd)
 {
 	char buf[64];
@@ -40,7 +42,7 @@ static void test_file_read_write(int fd)
 		    "pwrite on a guest_mem fd should fail");
 }
 
-static void test_mmap_supported(int fd, size_t page_size, size_t total_size)
+static void test_mmap_supported(int fd, size_t total_size)
 {
 	const char val = 0xaa;
 	char *mem;
@@ -80,7 +82,7 @@ void fault_sigbus_handler(int signum)
 	siglongjmp(jmpbuf, 1);
 }
 
-static void test_fault_overflow(int fd, size_t page_size, size_t total_size)
+static void test_fault_overflow(int fd, size_t total_size)
 {
 	struct sigaction sa_old, sa_new = {
 		.sa_handler = fault_sigbus_handler,
@@ -108,7 +110,7 @@ static void test_fault_overflow(int fd, size_t page_size, size_t total_size)
 	TEST_ASSERT(!ret, "munmap() should succeed.");
 }
 
-static void test_mmap_not_supported(int fd, size_t page_size, size_t total_size)
+static void test_mmap_not_supported(int fd, size_t total_size)
 {
 	char *mem;
 
@@ -119,7 +121,7 @@ static void test_mmap_not_supported(int fd, size_t page_size, size_t total_size)
 	TEST_ASSERT_EQ(mem, MAP_FAILED);
 }
 
-static void test_file_size(int fd, size_t page_size, size_t total_size)
+static void test_file_size(int fd, size_t total_size)
 {
 	struct stat sb;
 	int ret;
@@ -130,7 +132,7 @@ static void test_file_size(int fd, size_t page_size, size_t total_size)
 	TEST_ASSERT_EQ(sb.st_blksize, page_size);
 }
 
-static void test_fallocate(int fd, size_t page_size, size_t total_size)
+static void test_fallocate(int fd, size_t total_size)
 {
 	int ret;
 
@@ -167,7 +169,7 @@ static void test_fallocate(int fd, size_t page_size, size_t total_size)
 	TEST_ASSERT(!ret, "fallocate to restore punched hole should succeed");
 }
 
-static void test_invalid_punch_hole(int fd, size_t page_size, size_t total_size)
+static void test_invalid_punch_hole(int fd, size_t total_size)
 {
 	struct {
 		off_t offset;
@@ -198,8 +200,7 @@ static void test_invalid_punch_hole(int fd, size_t page_size, size_t total_size)
 }
 
 static void test_create_guest_memfd_invalid_sizes(struct kvm_vm *vm,
-						  uint64_t guest_memfd_flags,
-						  size_t page_size)
+						  uint64_t guest_memfd_flags)
 {
 	size_t size;
 	int fd;
@@ -216,7 +217,6 @@ static void test_create_guest_memfd_multiple(struct kvm_vm *vm)
 {
 	int fd1, fd2, ret;
 	struct stat st1, st2;
-	size_t page_size = getpagesize();
 
 	fd1 = __vm_create_guest_memfd(vm, page_size, 0);
 	TEST_ASSERT(fd1 != -1, "memfd creation should succeed");
@@ -244,7 +244,6 @@ static void test_create_guest_memfd_multiple(struct kvm_vm *vm)
 static void test_guest_memfd_flags(struct kvm_vm *vm)
 {
 	uint64_t valid_flags = vm_check_cap(vm, KVM_CAP_GUEST_MEMFD_FLAGS);
-	size_t page_size = getpagesize();
 	uint64_t flag;
 	int fd;
 
@@ -267,11 +266,9 @@ static void test_guest_memfd(unsigned long vm_type)
 {
 	struct kvm_vm *vm;
 	size_t total_size;
-	size_t page_size;
 	uint64_t flags;
 	int fd;
 
-	page_size = getpagesize();
 	total_size = page_size * 4;
 
 	vm = vm_create_barebones_type(vm_type);
@@ -282,22 +279,22 @@ static void test_guest_memfd(unsigned long vm_type)
 		flags &= ~GUEST_MEMFD_FLAG_MMAP;
 
 	test_create_guest_memfd_multiple(vm);
-	test_create_guest_memfd_invalid_sizes(vm, flags, page_size);
+	test_create_guest_memfd_invalid_sizes(vm, flags);
 
 	fd = vm_create_guest_memfd(vm, total_size, flags);
 
 	test_file_read_write(fd);
 
 	if (flags & GUEST_MEMFD_FLAG_MMAP) {
-		test_mmap_supported(fd, page_size, total_size);
-		test_fault_overflow(fd, page_size, total_size);
+		test_mmap_supported(fd, total_size);
+		test_fault_overflow(fd, total_size);
 	} else {
-		test_mmap_not_supported(fd, page_size, total_size);
+		test_mmap_not_supported(fd, total_size);
 	}
 
-	test_file_size(fd, page_size, total_size);
-	test_fallocate(fd, page_size, total_size);
-	test_invalid_punch_hole(fd, page_size, total_size);
+	test_file_size(fd, total_size);
+	test_fallocate(fd, total_size);
+	test_invalid_punch_hole(fd, total_size);
 
 	test_guest_memfd_flags(vm);
 
@@ -375,6 +372,8 @@ int main(int argc, char *argv[])
 	unsigned long vm_types, vm_type;
 
 	TEST_REQUIRE(kvm_has_cap(KVM_CAP_GUEST_MEMFD));
+
+	page_size = getpagesize();
 
 	/*
 	 * Not all architectures support KVM_CAP_VM_TYPES. However, those that
