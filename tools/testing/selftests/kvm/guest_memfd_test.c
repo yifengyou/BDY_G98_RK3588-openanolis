@@ -52,8 +52,7 @@ static void test_mmap_supported(int fd, size_t total_size)
 	mem = mmap(NULL, total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
 	TEST_ASSERT(mem == MAP_FAILED, "Copy-on-write not allowed by guest_memfd.");
 
-	mem = mmap(NULL, total_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	TEST_ASSERT(mem != MAP_FAILED, "mmap() for guest_memfd should succeed.");
+	mem = kvm_mmap(total_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd);
 
 	memset(mem, val, total_size);
 	for (i = 0; i < total_size; i++)
@@ -72,8 +71,7 @@ static void test_mmap_supported(int fd, size_t total_size)
 	for (i = 0; i < total_size; i++)
 		TEST_ASSERT_EQ(READ_ONCE(mem[i]), val);
 
-	ret = munmap(mem, total_size);
-	TEST_ASSERT(!ret, "munmap() should succeed.");
+	kvm_munmap(mem, total_size);
 }
 
 static sigjmp_buf jmpbuf;
@@ -91,10 +89,8 @@ static void test_fault_overflow(int fd, size_t total_size)
 	const char val = 0xaa;
 	char *mem;
 	size_t i;
-	int ret;
 
-	mem = mmap(NULL, map_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	TEST_ASSERT(mem != MAP_FAILED, "mmap() for guest_memfd should succeed.");
+	mem = kvm_mmap(map_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd);
 
 	sigaction(SIGBUS, &sa_new, &sa_old);
 	if (sigsetjmp(jmpbuf, 1) == 0) {
@@ -106,8 +102,7 @@ static void test_fault_overflow(int fd, size_t total_size)
 	for (i = 0; i < total_size; i++)
 		TEST_ASSERT_EQ(READ_ONCE(mem[i]), val);
 
-	ret = munmap(mem, map_size);
-	TEST_ASSERT(!ret, "munmap() should succeed.");
+	kvm_munmap(mem, map_size);
 }
 
 static void test_mmap_not_supported(int fd, size_t total_size)
@@ -353,10 +348,9 @@ static void test_guest_memfd_guest(void)
 					     GUEST_MEMFD_FLAG_INIT_SHARED);
 	vm_set_user_memory_region2(vm, slot, KVM_MEM_GUEST_MEMFD, gpa, size, NULL, fd, 0);
 
-	mem = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	TEST_ASSERT(mem != MAP_FAILED, "mmap() on guest_memfd failed");
+	mem = kvm_mmap(size, PROT_READ | PROT_WRITE, MAP_SHARED, fd);
 	memset(mem, 0xaa, size);
-	munmap(mem, size);
+	kvm_munmap(mem, size);
 
 	virt_pg_map(vm, gpa, gpa);
 	vcpu_args_set(vcpu, 2, gpa, size);
@@ -364,8 +358,7 @@ static void test_guest_memfd_guest(void)
 
 	TEST_ASSERT_EQ(get_ucall(vcpu, NULL), UCALL_DONE);
 
-	mem = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	TEST_ASSERT(mem != MAP_FAILED, "mmap() on guest_memfd failed");
+	mem = kvm_mmap(size, PROT_READ | PROT_WRITE, MAP_SHARED, fd);
 	for (i = 0; i < size; i++)
 		TEST_ASSERT_EQ(mem[i], 0xff);
 
