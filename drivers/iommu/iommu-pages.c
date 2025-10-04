@@ -97,7 +97,7 @@ EXPORT_SYMBOL_GPL(iommu_alloc_pages_node_sz);
 static void __iommu_free_desc(struct ioptdesc *iopt)
 {
 	struct folio *folio = ioptdesc_folio(iopt);
-	const unsigned long pgcnt = 1UL << folio_order(folio);
+	const unsigned long pgcnt = folio_nr_pages(folio);
 
 	if (IOMMU_PAGES_USE_DMA_API)
 		WARN_ON_ONCE(iopt->incoherent);
