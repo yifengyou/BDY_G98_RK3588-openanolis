@@ -273,7 +273,7 @@ static int ufs_qcom_enable_lane_clks(struct ufs_qcom_host *host)
 		goto disable_tx_l0;
 
 	err = ufs_qcom_host_clk_enable(dev, "tx_lane1_sync_clk",
-			host->tx_l1_sync_clk);
+		host->tx_l1_sync_clk);
 	if (err)
 		goto disable_rx_l1;
 
@@ -696,7 +696,7 @@ static int ufs_qcom_link_startup_notify(struct ufs_hba *hba,
 			 * divider
 			 */
 			err = ufs_qcom_set_dme_vs_core_clk_ctrl_clear_div(hba,
-									  150);
+								  150);
 
 		/*
 		 * Some UFS devices (and may be host) have issues if LCC is
@@ -744,12 +744,25 @@ static int ufs_qcom_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op,
 		 */
 		ufs_qcom_disable_lane_clks(host);
 		phy_power_off(phy);
-
-		/* reset the connected UFS device during power down */
-		ufs_qcom_device_reset_ctrl(hba, true);
-
 	} else if (!ufs_qcom_is_link_active(hba)) {
 		ufs_qcom_disable_lane_clks(host);
+	}
+
+	/* reset the connected UFS device during power down */
+	if (ufs_qcom_is_link_off(hba) && host->device_reset) {
+		ufs_qcom_device_reset_ctrl(hba, true);
+		/*
+		 * After sending the SSU command, asserting the rst_n
+		 * line causes the device firmware to wake up and
+		 * execute its reset routine.
+		 *
+		 * During this process, the device may draw current
+		 * beyond the permissible limit for low-power mode (LPM).
+		 * A 10ms delay, based on experimental observations,
+		 * allows the UFS device to complete its hardware reset
+		 * before transitioning the power rail to LPM.
+		 */
+		usleep_range(10000, 11000);
 	}
 
 	return ufs_qcom_ice_suspend(host);
