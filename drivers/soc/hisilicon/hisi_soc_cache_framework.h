@@ -17,6 +17,7 @@
 #include <uapi/misc/hisi_soc_cache/hisi_soc_cache.h>
 
 enum hisi_soc_comp_type {
+	HISI_SOC_L3C,
 	HISI_SOC_HHA,
 	SOC_COMP_TYPE_MAX
 };
@@ -26,6 +27,12 @@ struct hisi_soc_comp;
 /**
  * struct hisi_soc_comp_ops - Callbacks for SoC cache drivers to handle
  *			      operation requests.
+ *
+ * @lock_enable: lock certain region of L3 cache from being evicted.
+ * @poll_lock_done: check if the lock operation has succeeded.
+ * @unlock_enable: unlock the locked region of L3 cache back to normal.
+ * @poll_unlock_done: check if the unlock operation has succeeded.
+	      operation requests.
  * @maintain_enable: perform certain cache maintain operation on HHA.
  * @poll_maintain_done: check if the HHA maintain operation has succeeded.
  *
@@ -41,6 +48,14 @@ struct hisi_soc_comp;
  *   before corresponding done functions being called.
  */
 struct hisi_soc_comp_ops {
+	int (*do_lock)(struct hisi_soc_comp *comp,
+			      phys_addr_t addr, size_t size);
+	int (*poll_lock_done)(struct hisi_soc_comp *comp,
+			      phys_addr_t addr, size_t size);
+	int (*do_unlock)(struct hisi_soc_comp *comp,
+			      phys_addr_t addr);
+	int (*poll_unlock_done)(struct hisi_soc_comp *comp,
+			      phys_addr_t addr);
 	int (*do_maintain)(struct hisi_soc_comp *comp,
 			      phys_addr_t addr, size_t size,
 			      enum hisi_soc_cache_maint_type mnt_type);

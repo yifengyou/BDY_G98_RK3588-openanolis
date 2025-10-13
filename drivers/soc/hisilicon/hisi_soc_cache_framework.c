@@ -26,6 +26,19 @@
 
 #include "hisi_soc_cache_framework.h"
 
+struct hisi_soc_cache_lock_region {
+	/* physical address of the arena allocated for aligned address */
+	unsigned long arena_start;
+	/* VMA region of locked memory for future release */
+	unsigned long vm_start;
+	unsigned long vm_end;
+	phys_addr_t addr;
+	size_t size;
+	/* Return value of cache lock call */
+	int status;
+	int cpu;
+};
+
 struct hisi_soc_comp_inst {
 	struct list_head node;
 	struct hisi_soc_comp *comp;
@@ -39,6 +52,72 @@ struct hisi_soc_comp_list {
 };
 
 static struct hisi_soc_comp_list soc_cache_devs[SOC_COMP_TYPE_MAX];
+
+static int hisi_soc_cache_lock(int cpu, phys_addr_t addr, size_t size)
+{
+	struct hisi_soc_comp_inst *inst;
+	struct list_head *head;
+	int ret = -ENOMEM;
+
+	/* Avoid null pointer when there is no instance onboard. */
+	if (soc_cache_devs[HISI_SOC_L3C].inst_num <= 0)
+		return ret;
+
+	guard(spinlock)(&soc_cache_devs[HISI_SOC_L3C].lock);
+
+	/* Iterate L3C instances to perform operation, break loop once found. */
+	head = &soc_cache_devs[HISI_SOC_L3C].node;
+	list_for_each_entry(inst, head, node) {
+		if (!cpumask_test_cpu(cpu, &inst->comp->affinity_mask))
+			continue;
+		ret = inst->comp->ops->do_lock(inst->comp, addr, size);
+		if (ret)
+			return ret;
+	}
+
+	list_for_each_entry(inst, head, node) {
+		if (!cpumask_test_cpu(cpu, &inst->comp->affinity_mask))
+			continue;
+		ret = inst->comp->ops->poll_lock_done(inst->comp, addr, size);
+		if (ret)
+			return ret;
+	}
+
+	return ret;
+}
+
+static int hisi_soc_cache_unlock(int cpu, phys_addr_t addr)
+{
+	struct hisi_soc_comp_inst *inst;
+	struct list_head *head;
+	int ret = 0;
+
+	/* Avoid null pointer when there is no instance onboard. */
+	if (soc_cache_devs[HISI_SOC_L3C].inst_num <= 0)
+		return ret;
+
+	guard(spinlock)(&soc_cache_devs[HISI_SOC_L3C].lock);
+
+	/* Iterate L3C instances to perform operation, break loop once found. */
+	head = &soc_cache_devs[HISI_SOC_L3C].node;
+	list_for_each_entry(inst, head, node) {
+		if (!cpumask_test_cpu(cpu, &inst->comp->affinity_mask))
+			continue;
+		ret = inst->comp->ops->do_unlock(inst->comp, addr);
+		if (ret)
+			return ret;
+	}
+
+	list_for_each_entry(inst, head, node) {
+		if (!cpumask_test_cpu(cpu, &inst->comp->affinity_mask))
+			continue;
+		ret = inst->comp->ops->poll_unlock_done(inst->comp, addr);
+		if (ret)
+			return ret;
+	}
+
+	return ret;
+}
 
 int hisi_soc_cache_maintain(phys_addr_t addr, size_t size,
 			    enum hisi_soc_cache_maint_type mnt_type)
@@ -98,8 +177,15 @@ static const struct mm_walk_ops hisi_soc_cache_maint_walk = {
 static int hisi_soc_cache_inst_check(const struct hisi_soc_comp *comp,
 				     enum hisi_soc_comp_type comp_type)
 {
+	struct hisi_soc_comp_ops *ops = comp->ops;
+
 	/* Different types of component could have different ops. */
 	switch (comp_type) {
+	case HISI_SOC_L3C:
+		if (!ops->do_lock || !ops->poll_lock_done
+		    || !ops->do_unlock || !ops->poll_unlock_done)
+			return -EINVAL;
+		break;
 	case HISI_SOC_HHA:
 		if (!comp->ops->do_maintain || !comp->ops->poll_maintain_done)
 			return -EINVAL;
@@ -164,7 +250,7 @@ static void hisi_soc_cache_inst_del(struct hisi_soc_comp *comp,
 
 int hisi_soc_comp_inst_add(struct hisi_soc_comp *comp)
 {
-	int ret, i = 0;
+	int ret, i = HISI_SOC_L3C;
 
 	if (!comp || !comp->ops || comp->comp_type == 0)
 		return -EINVAL;
@@ -192,6 +278,187 @@ int hisi_soc_comp_inst_del(struct hisi_soc_comp *comp)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(hisi_soc_comp_inst_del);
+
+/**
+ * hisi_soc_cache_aligned_alloc - Allocate memory region to be locked and
+ *				  returns address that aligned to the requested
+ *				  size.
+ * @clr:	The locked memory region to be allocated for.
+ * @size:	Requested memory size.
+ * @addr:	Pointer of the start physical address of the requested
+ *		memory region.
+ *
+ * @return:
+ *    - -ENOMEM: If allocation fails.
+ *    - 0: If allocations succeeds.
+ *
+ * Physical address of allocated memory region is requested to be aligned to
+ * its size.  In order to achieve that, add the order of requested memory size
+ * by 1 to double the size of allocated memory to ensure the existence of size-
+ * aligned address.  After locating the aligned region, release the unused
+ * pages from both sides to avoid waste.
+ */
+static int hisi_soc_cache_aligned_alloc(struct hisi_soc_cache_lock_region *clr,
+					unsigned long size,
+					unsigned long *addr)
+{
+	int order = get_order(size) + 1;
+	unsigned long arena_start;
+	struct page *pg;
+
+	pg = alloc_contig_pages(1 << order, GFP_KERNEL | __GFP_NOWARN | __GFP_ZERO,
+				cpu_to_node(smp_processor_id()), NULL);
+	if (!pg)
+		return -ENOMEM;
+
+	arena_start = page_to_phys(pg);
+
+	/*
+	 * Align up the address by the requested size if the address is not
+	 * naturally aligned to the size.
+	 */
+	*addr = arena_start % size == 0
+		? arena_start
+		: arena_start / size * size + size;
+
+	clr->arena_start = arena_start;
+
+	return 0;
+}
+
+/**
+ * hisi_soc_cache_aligned_free - Free the aligned memory region allcated by
+ *				 hisi_soc_cache_aligned_alloc().
+ * @clr:	The allocated locked memory region.
+ *
+ * Since unused memory pages are release in hisi_soc_cache_aligned_alloc(), the
+ * memory region to be freed here may not be power of 2 numbers of pages.
+ * Thus split the memory by page order and release them accordingly.
+ */
+static void hisi_soc_cache_aligned_free(struct hisi_soc_cache_lock_region *clr)
+{
+	int order = get_order(clr->size) + 1;
+
+	free_contig_range(PHYS_PFN(clr->arena_start), 1 << order);
+}
+
+static void hisi_soc_cache_vm_open(struct vm_area_struct *vma)
+{
+	struct hisi_soc_cache_lock_region *clr = vma->vm_private_data;
+
+	/*
+	 * Only perform cache lock when the vma passed in is created
+	 * in hisi_soc_cache_mmap.
+	 */
+	if (clr->vm_start != vma->vm_start || clr->vm_end != vma->vm_end)
+		return;
+
+	clr->status = hisi_soc_cache_lock(clr->cpu, clr->addr, clr->size);
+}
+
+static void hisi_soc_cache_vm_close(struct vm_area_struct *vma)
+{
+	struct hisi_soc_cache_lock_region *clr = vma->vm_private_data;
+
+	/*
+	 * Only perform cache unlock when the vma passed in is created
+	 * in hisi_soc_cache_mmap.
+	 */
+	if (clr->vm_start != vma->vm_start || clr->vm_end != vma->vm_end)
+		return;
+
+	hisi_soc_cache_unlock(clr->cpu, clr->addr);
+
+	hisi_soc_cache_aligned_free(clr);
+	kfree(clr);
+	vma->vm_private_data = NULL;
+}
+
+/*
+ * mremap operation is not supported for HiSilicon SoC cache.
+ */
+static int hisi_soc_cache_vm_mremap(struct vm_area_struct *vma)
+{
+	struct hisi_soc_cache_lock_region *clr = vma->vm_private_data;
+
+	/*
+	 * vma region size will be changed as requested by mremap despite the
+	 * callback failure in this function.  Thus, change the vma region
+	 * stored in clr according to the parameters to verify if the pages
+	 * should be freed when unmapping.
+	 */
+	clr->vm_end = clr->vm_start + (vma->vm_end - vma->vm_start);
+	pr_err("mremap for HiSilicon SoC locked cache is not supported\n");
+
+	return -EOPNOTSUPP;
+}
+
+static int hisi_soc_cache_may_split(struct vm_area_struct *area, unsigned long addr)
+{
+	pr_err("HiSilicon SoC locked cache may not be split.\n");
+	return -EINVAL;
+}
+
+static const struct vm_operations_struct hisi_soc_cache_vm_ops = {
+	.open = hisi_soc_cache_vm_open,
+	.close = hisi_soc_cache_vm_close,
+	.may_split = hisi_soc_cache_may_split,
+	.mremap = hisi_soc_cache_vm_mremap,
+};
+
+static int hisi_soc_cache_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	unsigned long size = vma->vm_end - vma->vm_start;
+	struct hisi_soc_cache_lock_region *clr;
+	unsigned long addr;
+	int ret;
+
+	clr = kzalloc(sizeof(*clr), GFP_KERNEL);
+	if (!clr)
+		return -ENOMEM;
+
+	ret = hisi_soc_cache_aligned_alloc(clr, size, &addr);
+	if (ret)
+		goto out_clr;
+
+	if (vma->vm_pgoff > PAGE_SIZE)
+		return -EINVAL;
+
+	ret = remap_pfn_range(vma, vma->vm_start,
+			      (addr >> PAGE_SHIFT) + vma->vm_pgoff,
+			      size, vma->vm_page_prot);
+	if (ret)
+		goto out_page;
+
+	clr->addr = addr;
+	clr->size = size;
+	clr->cpu = smp_processor_id();
+	vm_flags_set(vma, VM_DONTCOPY | VM_DONTEXPAND);
+
+	/*
+	 * The vma should not be moved throughout its lifetime, store the
+	 * region for verification.
+	 */
+	clr->vm_start = vma->vm_start;
+	clr->vm_end = vma->vm_end;
+
+	vma->vm_private_data = clr;
+	vma->vm_ops = &hisi_soc_cache_vm_ops;
+	hisi_soc_cache_vm_ops.open(vma);
+
+	if (clr->status) {
+		ret = clr->status;
+		goto out_page;
+	}
+
+	return 0;
+
+out_page:
+	hisi_soc_cache_aligned_free(clr);
+out_clr:
+	kfree(clr);
+	return ret;
+}
 
 static int __hisi_soc_cache_maintain(unsigned long __user vaddr, size_t size,
 				     enum hisi_soc_cache_maint_type mnt_type)
@@ -264,6 +531,7 @@ out:
 static const struct file_operations soc_cache_dev_fops = {
 	.owner = THIS_MODULE,
 	.unlocked_ioctl = hisi_soc_cache_mgmt_ioctl,
+	.mmap = hisi_soc_cache_mmap,
 };
 
 static struct miscdevice soc_cache_miscdev = {
@@ -292,6 +560,7 @@ static void hisi_soc_cache_framework_data_init(void)
 }
 
 static const char *const hisi_soc_cache_item_str[SOC_COMP_TYPE_MAX] = {
+	"cache",
 	"hha"
 };
 
