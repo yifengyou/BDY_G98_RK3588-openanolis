@@ -232,6 +232,9 @@ OVERRIDE_TARGETS = 1
 # which causes the environment variable to override the makefile).
 include ../lib.mk
 
+# Build KVM selftests with _GNU_SOURCE so libc is declared.
+CFLAGS += -D_GNU_SOURCE=
+
 INSTALL_HDR_PATH = $(top_srcdir)/usr
 LINUX_HDR_PATH = $(INSTALL_HDR_PATH)/include/
 LINUX_TOOL_INCLUDE = $(top_srcdir)/tools/include
