@@ -101,6 +101,7 @@
 #define DMA_BUF_MAGIC		0x444d4142	/* "DMAB" */
 #define DEVMEM_MAGIC		0x454d444d	/* "DMEM" */
 #define SECRETMEM_MAGIC		0x5345434d	/* "SECM" */
+#define GUEST_MEMFD_MAGIC	0x474d454d	/* "GMEM" */
 
 #define GROUP_BALANCER_MAGIC	0x26262626
 #endif /* __LINUX_MAGIC_H__ */
