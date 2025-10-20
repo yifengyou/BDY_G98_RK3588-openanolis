@@ -116,7 +116,7 @@ static const struct header_ops ubl_header_ops ____cacheline_aligned = {
 };
 
 /**
- * ubl_setup - setup ub link network device
+ * ubl_setup - set up a ubl netdev
  * @dev: network device
  *
  * Fill in the fields of the device structure with ubl-generic values.
@@ -138,18 +138,17 @@ void ubl_setup(struct net_device *dev)
 EXPORT_SYMBOL(ubl_setup);
 
 /**
- * alloc_ubldev_mqs - Allocates and sets up a ub-link device
+ * alloc_ubldev_mqs - allocate and set up a ubl netdev
  * @sizeof_priv: Size of additional driver-private structure to be allocated
- *	for this ubl device
+ *	for this ubl netdev
  * @txqs: The number of TX queues this device has.
  * @rxqs: The number of RX queues this device has.
  *
  * Fill in the fields of the device structure with ubl-generic
  * values. Basically done everything except registering the device.
  *
- * Constructs a new net device, completing with a private data area of
- * size (sizeof_priv). A 32-byte (not bit) alignment is enforced for
- * this private data area.
+ * Allocate a new net device, with a private data area of size (sizeof_priv).
+ * A 32-byte alignment is enforced for this private data area.
  */
 
 struct net_device *alloc_ubldev_mqs(int sizeof_priv, unsigned int txqs,
@@ -161,13 +160,13 @@ struct net_device *alloc_ubldev_mqs(int sizeof_priv, unsigned int txqs,
 EXPORT_SYMBOL(alloc_ubldev_mqs);
 
 /**
- * ubl_type_trans - obtains skb->protocol and adds sw_ptype to the packet
+ * ubl_type_trans - obtain packet type and insert sw_ptype to the packet header
  * @skb: buffer to alter
  * @dev: source device
  * @type: packet type
  *
- * Obtains the packet type and translates it to skb->protocol and adds sw_ptype
- * to the packet data.
+ * Obtain the packet type, translate it to skb->protocol and insert sw_ptype
+ * to the packet header.
  */
 __be16 ubl_type_trans(struct sk_buff *skb, struct net_device *dev, u8 type)
 {
