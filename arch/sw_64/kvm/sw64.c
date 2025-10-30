@@ -568,7 +568,7 @@ long kvm_arch_vcpu_ioctl(struct file *filp,
 	return r;
 }
 
-long kvm_arch_vcpu_async_ioctl(struct file *filp, unsigned int ioctl,
+long kvm_arch_vcpu_unlocked_ioctl(struct file *filp, unsigned int ioctl,
 		unsigned long arg)
 {
 	return -ENOIOCTLCMD;
