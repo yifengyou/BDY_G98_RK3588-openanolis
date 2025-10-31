@@ -15,4 +15,5 @@ menuconfig UB
 if UB
 source "drivers/ub/ubus/Kconfig"
 source "drivers/ub/ubfi/Kconfig"
+source "drivers/ub/ubase/Kconfig"
 endif # UB
