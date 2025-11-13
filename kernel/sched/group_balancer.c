@@ -1455,9 +1455,9 @@ static struct group_balancer_sched_domain *select_idle_gb_sd(int specs)
 		 * specs cannot fully represent the degree of idleness if the span weight is
 		 * different.
 		 */
-		if (max_free_specs < specs &&
+		if (max_free_specs < specs && (!max_unsatisfied_free_child ||
 		    max_free_specs / max_free_child->span_weight <
-		    max_unsatisfied_free_specs / max_unsatisfied_free_child->span_weight)
+		    max_unsatisfied_free_specs / max_unsatisfied_free_child->span_weight))
 			break;
 		gb_sd = max_free_child;
 	}
@@ -1598,7 +1598,7 @@ static void tg_upper_level(struct task_group *tg, struct group_balancer_sched_do
 static bool tg_lower_level(struct task_group *tg)
 {
 	struct group_balancer_sched_domain *gb_sd = tg->gb_sd;
-	struct group_balancer_sched_domain *child, *dst;
+	struct group_balancer_sched_domain *child, *dst = NULL;
 	unsigned long tg_child_load, tg_load = 0, tg_dst_load = 0;
 	unsigned long child_load, src_load, dst_load, total_load = 0, migrate_load;
 	unsigned long child_cap, total_cap = 0, src_cap, dst_cap = 0;
@@ -1680,7 +1680,7 @@ lower:
 	detach_tg_from_group_balancer_sched_domain(tg, false);
 	attach_tg_to_group_balancer_sched_domain(tg, dst, false);
 	/* The task group maybe still leap level, check it. */
-	check_task_group_leap_level(tg, gb_sd);
+	check_task_group_leap_level(tg, dst);
 
 	return true;
 fail:
