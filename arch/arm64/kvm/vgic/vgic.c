@@ -922,8 +922,9 @@ void kvm_vgic_flush_hwstate(struct kvm_vcpu *vcpu)
 	 *   abort the entry procedure and inject the exception at the
 	 *   beginning of the run loop.
 	 *
-	 * - Otherwise, do exactly *NOTHING*. The guest state is
-	 *   already loaded, and we can carry on with running it.
+	 * - Otherwise, do exactly *NOTHING* apart from enabling the virtual
+	 *   CPU interface. The guest state is already loaded, and we can
+	 *   carry on with running it.
 	 *
 	 * If we have NV, but are not in a nested state, compute the
 	 * maintenance interrupt state, as it may fire.
@@ -932,6 +933,7 @@ void kvm_vgic_flush_hwstate(struct kvm_vcpu *vcpu)
 		if (kvm_vgic_vcpu_pending_irq(vcpu))
 			kvm_make_request(KVM_REQ_GUEST_HYP_IRQ_PENDING, vcpu);
 
+		vgic_v3_flush_nested(vcpu);
 		return;
 	}
 
