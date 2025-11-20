@@ -281,6 +281,7 @@ void vgic_v3_flush_nested(struct kvm_vcpu *vcpu)
 void vgic_v3_sync_nested(struct kvm_vcpu *vcpu)
 {
 	struct shadow_if *shadow_if = get_shadow_if();
+	unsigned long flags;
 	int i;
 	u64 val;
 
@@ -296,7 +297,14 @@ void vgic_v3_sync_nested(struct kvm_vcpu *vcpu)
 		val |= host_lr & ICH_LR_STATE;
 		__vcpu_sys_reg(vcpu, ICH_LRN(i)) = val;
 
-		if (!(lr & ICH_LR_HW) || !(lr & ICH_LR_STATE))
+		/*
+		 * Deactivation of a HW interrupt: the LR must have the HW
+		 * bit set, have been in a non-invalid state before the run,
+		 * and now be in an invalid state. If any of that doesn't
+		 * hold, we're done with this LR.
+		 */
+		if (!((lr & ICH_LR_HW) && (lr & ICH_LR_STATE) &&
+		      !(host_lr & ICH_LR_STATE)))
 			continue;
 
 		/*
@@ -305,11 +313,12 @@ void vgic_v3_sync_nested(struct kvm_vcpu *vcpu)
 		 * and the nested guest.
 		 */
 		irq = vgic_get_vcpu_irq(vcpu, FIELD_GET(ICH_LR_PHYS_ID_MASK, lr));
-		if (WARN_ON(!irq)) /* Shouldn't happen as we check on load */
+		if (WARN_ON(!irq))
 			continue;
 
-		if (!(host_lr & ICH_LR_STATE))
-			irq->active = false;
+		raw_spin_lock_irqsave(&irq->irq_lock, flags);
+		irq->active = false;
+		raw_spin_unlock_irqrestore(&irq->irq_lock, flags);
 
 		vgic_put_irq(vcpu->kvm, irq);
 	}
