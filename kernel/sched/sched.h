@@ -2405,7 +2405,7 @@ queue_balance_callback(struct rq *rq,
 }
 
 #define rcu_dereference_sched_domain(p) \
-	rcu_dereference_check((p), \
+	rcu_dereference_all_check((p), \
 			      lockdep_is_held(&sched_domains_mutex))
 
 /*
