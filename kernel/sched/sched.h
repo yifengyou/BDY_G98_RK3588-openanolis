@@ -885,7 +885,7 @@ struct cfs_rq {
 	unsigned int		nr_tasks;
 #endif
 
-	s64			avg_vruntime;
+	s64			sum_w_vruntime;
 	u64			sum_weight;
 
 	u64			zero_vruntime;

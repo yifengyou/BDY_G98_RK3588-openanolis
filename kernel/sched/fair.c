@@ -643,7 +643,7 @@ static inline s64 entity_key(struct cfs_rq *cfs_rq, struct sched_entity *se)
  * Which we track using:
  *
  *                    v0 := cfs_rq->zero_vruntime
- * \Sum (v_i - v0) * w_i := cfs_rq->avg_vruntime
+ * \Sum (v_i - v0) * w_i := cfs_rq->sum_w_vruntime
  *              \Sum w_i := cfs_rq->sum_weight
  *
  * Since zero_vruntime closely tracks the per-task service, these
@@ -655,32 +655,32 @@ static inline s64 entity_key(struct cfs_rq *cfs_rq, struct sched_entity *se)
  * As measured, the max (key * weight) value was ~44 bits for a kernel build.
  */
 static void
-avg_vruntime_add(struct cfs_rq *cfs_rq, struct sched_entity *se)
+sum_w_vruntime_add(struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
 	unsigned long weight = scale_load_down(se->load.weight);
 	s64 key = entity_key(cfs_rq, se);
 
-	cfs_rq->avg_vruntime += key * weight;
+	cfs_rq->sum_w_vruntime += key * weight;
 	cfs_rq->sum_weight += weight;
 }
 
 static void
-avg_vruntime_sub(struct cfs_rq *cfs_rq, struct sched_entity *se)
+sum_w_vruntime_sub(struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
 	unsigned long weight = scale_load_down(se->load.weight);
 	s64 key = entity_key(cfs_rq, se);
 
-	cfs_rq->avg_vruntime -= key * weight;
+	cfs_rq->sum_w_vruntime -= key * weight;
 	cfs_rq->sum_weight -= weight;
 }
 
 static inline
-void avg_vruntime_update(struct cfs_rq *cfs_rq, s64 delta)
+void sum_w_vruntime_update(struct cfs_rq *cfs_rq, s64 delta)
 {
 	/*
-	 * v' = v + d ==> avg_vruntime' = avg_runtime - d*sum_weight
+	 * v' = v + d ==> sum_w_vruntime' = sum_runtime - d*sum_weight
 	 */
-	cfs_rq->avg_vruntime -= cfs_rq->sum_weight * delta;
+	cfs_rq->sum_w_vruntime -= cfs_rq->sum_weight * delta;
 }
 
 /*
@@ -690,7 +690,7 @@ void avg_vruntime_update(struct cfs_rq *cfs_rq, s64 delta)
 u64 avg_vruntime(struct cfs_rq *cfs_rq)
 {
 	struct sched_entity *curr = cfs_rq->curr;
-	s64 avg = cfs_rq->avg_vruntime;
+	s64 avg = cfs_rq->sum_w_vruntime;
 	long load = cfs_rq->sum_weight;
 
 	if (curr && curr->on_rq) {
@@ -758,7 +758,7 @@ static void update_entity_lag(struct cfs_rq *cfs_rq, struct sched_entity *se)
 static int vruntime_eligible(struct cfs_rq *cfs_rq, u64 vruntime)
 {
 	struct sched_entity *curr = cfs_rq->curr;
-	s64 avg = cfs_rq->avg_vruntime;
+	s64 avg = cfs_rq->sum_w_vruntime;
 	long load = cfs_rq->sum_weight;
 
 	if (curr && curr->on_rq) {
@@ -781,7 +781,7 @@ static void update_zero_vruntime(struct cfs_rq *cfs_rq)
 	u64 vruntime = avg_vruntime(cfs_rq);
 	s64 delta = (s64)(vruntime - cfs_rq->zero_vruntime);
 
-	avg_vruntime_update(cfs_rq, delta);
+	sum_w_vruntime_update(cfs_rq, delta);
 
 	cfs_rq->zero_vruntime = vruntime;
 }
@@ -878,7 +878,7 @@ static void __enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 	if (!list_empty(&se->expel_node))
 		return;
 #endif
-	avg_vruntime_add(cfs_rq, se);
+	sum_w_vruntime_add(cfs_rq, se);
 	update_zero_vruntime(cfs_rq);
 	se->min_vruntime = se->vruntime;
 	se->min_slice = se->slice;
@@ -902,7 +902,7 @@ static void __dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 #endif
 	rb_erase_augmented_cached(&se->run_node, &cfs_rq->tasks_timeline,
 				  &min_vruntime_cb);
-	avg_vruntime_sub(cfs_rq, se);
+	sum_w_vruntime_sub(cfs_rq, se);
 	update_zero_vruntime(cfs_rq);
 }
 
@@ -1516,7 +1516,7 @@ static inline struct rb_node *skip_expellee_se(struct cfs_rq *cfs_rq)
 		 *
 		 * __dequeue_entity() removes the entity from both the deadline
 		 * tree and the queued-entity average used by eligibility tests
-		 * (avg_vruntime/sum_weight). Therefore expellees moved to expel_list
+		 * (sum_w_vruntime/sum_weight). Therefore expellees moved to expel_list
 		 * no longer contribute through the queued tree population.
 		 *
 		 * Note that this only applies to entities actually dequeued from
@@ -1675,12 +1675,12 @@ static inline void id_pick_eligible_data(struct cfs_rq *cfs_rq,
 {
 	struct sched_entity *curr = cfs_rq->curr;
 
-	*avg = cfs_rq->avg_vruntime;
+	*avg = cfs_rq->sum_w_vruntime;
 	*load = cfs_rq->sum_weight;
 
 	/*
 	 * The queued expellees hidden by skip_expellee_se() have already been
-	 * removed from avg_vruntime/sum_weight via __dequeue_entity().
+	 * removed from sum_w_vruntime/sum_weight via __dequeue_entity().
 	 *
 	 * Mirror that same filtered view for cfs_rq->curr here. curr is not
 	 * part of the rb-tree, but the generic vruntime_eligible() logic would
@@ -1887,7 +1887,7 @@ static struct sched_entity *id_pick_eevdf(struct cfs_rq *cfs_rq, bool protect)
 	 *
 	 * where:
 	 *
-	 *   avg  = cfs_rq->avg_vruntime
+	 *   avg  = cfs_rq->sum_w_vruntime
 	 *   load = cfs_rq->sum_weight
 	 *   v_i  = se->vruntime
 	 *
