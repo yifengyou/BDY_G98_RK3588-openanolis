@@ -559,7 +559,7 @@ xfs_attri_item_recover(
 	struct xfs_attri_log_item	*attrip = ATTRI_ITEM(lip);
 	struct xfs_attr_intent		*attr;
 	struct xfs_mount		*mp = lip->li_log->l_mp;
-	struct xfs_inode		*ip;
+	struct xfs_inode		*ip = NULL;
 	struct xfs_da_args		*args;
 	struct xfs_trans		*tp;
 	struct xfs_trans_res		resv;
