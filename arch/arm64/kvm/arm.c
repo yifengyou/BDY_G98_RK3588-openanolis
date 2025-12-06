@@ -2489,7 +2489,7 @@ static int __init init_subsystems(void)
 
 	register_pmu_handlers();
 
-	kvm_register_perf_callbacks(NULL);
+	kvm_register_perf_callbacks();
 
 out:
 	if (err) {
