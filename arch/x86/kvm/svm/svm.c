@@ -186,6 +186,8 @@ module_param(vnmi, bool, 0444);
 static int set_guest_pat_wb;
 module_param(set_guest_pat_wb, int, 0444);
 
+module_param(enable_mediated_pmu, bool, 0444);
+
 static bool svm_gp_erratum_intercept = true;
 
 static u8 rsm_ins_bytes[] = "\x0f\xaa";
