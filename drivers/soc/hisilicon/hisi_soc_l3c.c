@@ -504,12 +504,12 @@ static int hisi_soc_l3c_remove(struct platform_device *pdev)
 	unsigned long idx;
 	struct hisi_soc_l3c_lock_region *entry;
 
-	hisi_soc_l3c_remove_locks(soc_l3c);
-
 	hisi_soc_comp_inst_del(&soc_l3c->comp);
 
 	cpuhp_state_remove_instance_nocalls(hisi_l3c_cpuhp_state,
 					    &soc_l3c->node);
+
+	hisi_soc_l3c_remove_locks(soc_l3c);
 
 	xa_for_each(&soc_l3c->lock_sets, idx, entry) {
 		entry = xa_erase(&soc_l3c->lock_sets, idx);
