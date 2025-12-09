@@ -483,7 +483,7 @@ static int __hisi_soc_cache_maintain(unsigned long __user vaddr, size_t size,
 
 	vma = vma_lookup(current->mm, vaddr);
 
-	if (!range_in_vma(vma, vaddr, vaddr + size)) {
+	if (!range_in_vma(vma, start, vaddr + size)) {
 		ret = -EINVAL;
 		goto out;
 	}
