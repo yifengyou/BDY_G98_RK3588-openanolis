@@ -592,7 +592,7 @@ static int __init hisi_soc_l3c_init(void)
 
 	ret = platform_driver_register(&hisi_soc_l3c_driver);
 	if (ret)
-		cpuhp_remove_multi_state(CPUHP_AP_ONLINE_DYN);
+		cpuhp_remove_multi_state(hisi_l3c_cpuhp_state);
 
 	return ret;
 }
@@ -601,7 +601,7 @@ module_init(hisi_soc_l3c_init);
 static void __exit hisi_soc_l3c_exit(void)
 {
 	platform_driver_unregister(&hisi_soc_l3c_driver);
-	cpuhp_remove_multi_state(CPUHP_AP_ONLINE_DYN);
+	cpuhp_remove_multi_state(hisi_l3c_cpuhp_state);
 }
 module_exit(hisi_soc_l3c_exit);
 
