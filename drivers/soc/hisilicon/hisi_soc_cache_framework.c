@@ -502,29 +502,22 @@ out:
 
 static long hisi_soc_cache_mgmt_ioctl(struct file *file, u32 cmd, unsigned long arg)
 {
-	struct hisi_soc_cache_ioctl_param *param =
-		kzalloc(sizeof(struct hisi_soc_cache_ioctl_param), GFP_KERNEL);
+	struct hisi_soc_cache_ioctl_param param;
 	long ret;
 
-	if (!param)
-		return -ENOMEM;
-
-	if (copy_from_user(param, (void __user *)arg, sizeof(*param))) {
-		ret = -EFAULT;
-		goto out;
-	}
+	if (copy_from_user(&param, (void __user *)arg, sizeof(param)))
+		return -EFAULT;
 
 	switch (cmd) {
 	case HISI_CACHE_MAINTAIN:
-		ret = __hisi_soc_cache_maintain(param->addr, param->size,
-						param->op_type);
+		ret = __hisi_soc_cache_maintain(param.addr, param.size,
+						param.op_type);
 		break;
 	default:
 		ret = -EINVAL;
 		break;
 	}
-out:
-	kfree(param);
+
 	return ret;
 }
 
