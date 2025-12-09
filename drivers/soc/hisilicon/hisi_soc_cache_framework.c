@@ -423,11 +423,6 @@ static int hisi_soc_cache_mmap(struct file *file, struct vm_area_struct *vma)
 	if (ret)
 		goto out_clr;
 
-	if (vma->vm_pgoff > PAGE_SIZE) {
-		ret = -EINVAL;
-		goto out_clr;
-	}
-
 	ret = remap_pfn_range(vma, vma->vm_start,
 			      (addr >> PAGE_SHIFT) + vma->vm_pgoff,
 			      size, vma->vm_page_prot);
