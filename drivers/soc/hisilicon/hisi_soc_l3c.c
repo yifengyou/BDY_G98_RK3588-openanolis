@@ -239,7 +239,7 @@ static int hisi_soc_l3c_do_lock(struct hisi_soc_comp *l3c_comp,
 
 	regset = hisi_soc_l3c_alloc_lock_reg_set(soc_l3c, addr, size);
 	if (regset < 0)
-		return -EBUSY;
+		return regset;
 
 	if (!hisi_l3c_lock_ctrl_wait_finished(soc_l3c, regset,
 					      HISI_L3C_LOCK_CTRL_LOCK_DONE)) {
