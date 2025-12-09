@@ -154,21 +154,24 @@ static int hisi_soc_cache_maint_pte_entry(pte_t *pte, unsigned long addr,
 				unsigned long next, struct mm_walk *walk)
 {
 #ifdef HISI_SOC_CACHE_LLT
-	enum hisi_soc_cache_maint_type mnt_type =
-		*((enum hisi_soc_cache_maint_type *)walk->priv);
+	struct hisi_soc_cache_ioctl_param *param =
+		(struct hisi_soc_cache_ioctl_param *)walk->priv;
 #else
-	enum hisi_soc_cache_maint_type mnt_type =
-		*((enum hisi_soc_cache_maint_type *)walk->private);
+	struct hisi_soc_cache_ioctl_param *param =
+		(struct hisi_soc_cache_ioctl_param *)walk->private;
 #endif
 	size_t size = next - addr;
 	phys_addr_t paddr;
+
+	if (next > param->addr + param->size)
+		return -EINVAL;
 
 	if (!pte_present(ptep_get(pte)))
 		return -EINVAL;
 
 	paddr = PFN_PHYS(pte_pfn(*pte)) + offset_in_page(addr);
 
-	return hisi_soc_cache_maintain(paddr, size, mnt_type);
+	return hisi_soc_cache_maintain(paddr, size, param->op_type);
 }
 
 static const struct mm_walk_ops hisi_soc_cache_maint_walk = {
@@ -459,28 +462,26 @@ out_clr:
 	return ret;
 }
 
-static int __hisi_soc_cache_maintain(unsigned long __user vaddr, size_t size,
-				     enum hisi_soc_cache_maint_type mnt_type)
+static int __hisi_soc_cache_maintain(struct hisi_soc_cache_ioctl_param *param)
 {
-	unsigned long start = untagged_addr(vaddr);
+	unsigned long start = untagged_addr(param->addr);
 	struct vm_area_struct *vma;
 	int ret = 0;
 
 	/* MakeInvalid is not allowed for calls from userspace. */
-	if (mnt_type >= HISI_CACHE_MAINT_MAKEINVALID)
+	if (param->op_type >= HISI_CACHE_MAINT_MAKEINVALID)
 		return -EINVAL;
 
 	/* Prevent overflow of vaddr + size. */
-	if (!size || vaddr + size < vaddr)
+	if (!param->size || start + param->size < start)
 		return -EINVAL;
 
 	ret = mmap_read_lock_killable(current->mm);
 	if (ret)
 	    return ret;
 
-	vma = vma_lookup(current->mm, vaddr);
-
-	if (!range_in_vma(vma, start, vaddr + size)) {
+	vma = vma_lookup(current->mm, param->addr);
+	if (!range_in_vma(vma, start, start + param->size)) {
 		ret = -EINVAL;
 		goto out;
 	}
@@ -491,8 +492,8 @@ static int __hisi_soc_cache_maintain(unsigned long __user vaddr, size_t size,
 		goto out;
 	}
 
-	ret = walk_page_range(current->mm, start, start + size,
-			&hisi_soc_cache_maint_walk, &mnt_type);
+	ret = walk_page_range(current->mm, start, start + param->size,
+			&hisi_soc_cache_maint_walk, param);
 
 out:
 	mmap_read_unlock(current->mm);
@@ -509,8 +510,7 @@ static long hisi_soc_cache_mgmt_ioctl(struct file *file, u32 cmd, unsigned long 
 
 	switch (cmd) {
 	case HISI_CACHE_MAINTAIN:
-		ret = __hisi_soc_cache_maintain(param.addr, param.size,
-						param.op_type);
+		ret = __hisi_soc_cache_maintain(&param);
 		break;
 	default:
 		ret = -EINVAL;
