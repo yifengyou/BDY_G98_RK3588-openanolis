@@ -352,9 +352,6 @@ static void hisi_soc_l3c_remove_locks(struct hisi_soc_l3c *soc_l3c)
 	guard(spinlock)(&soc_l3c->reg_lock);
 
 	xa_for_each(&soc_l3c->lock_sets, regset, entry) {
-		timeout = hisi_l3c_lock_ctrl_wait_finished(soc_l3c, regset,
-						HISI_L3C_LOCK_CTRL_UNLOCK_DONE);
-
 		ctrl = readl(base + l3c_lock_reg_offset(HISI_L3C_LOCK_CTRL,
 							regset));
 		ctrl = (ctrl | HISI_L3C_LOCK_CTRL_UNLOCK_EN) &
