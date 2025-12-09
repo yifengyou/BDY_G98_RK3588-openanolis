@@ -59,11 +59,11 @@ static int hisi_soc_cache_lock(int cpu, phys_addr_t addr, size_t size)
 	struct list_head *head;
 	int ret = -ENOMEM;
 
+	guard(spinlock)(&soc_cache_devs[HISI_SOC_L3C].lock);
+
 	/* Avoid null pointer when there is no instance onboard. */
 	if (soc_cache_devs[HISI_SOC_L3C].inst_num <= 0)
 		return ret;
-
-	guard(spinlock)(&soc_cache_devs[HISI_SOC_L3C].lock);
 
 	/* Iterate L3C instances to perform operation, break loop once found. */
 	head = &soc_cache_devs[HISI_SOC_L3C].node;
@@ -92,11 +92,11 @@ static int hisi_soc_cache_unlock(int cpu, phys_addr_t addr)
 	struct list_head *head;
 	int ret = 0;
 
+	guard(spinlock)(&soc_cache_devs[HISI_SOC_L3C].lock);
+
 	/* Avoid null pointer when there is no instance onboard. */
 	if (soc_cache_devs[HISI_SOC_L3C].inst_num <= 0)
 		return ret;
-
-	guard(spinlock)(&soc_cache_devs[HISI_SOC_L3C].lock);
 
 	/* Iterate L3C instances to perform operation, break loop once found. */
 	head = &soc_cache_devs[HISI_SOC_L3C].node;
