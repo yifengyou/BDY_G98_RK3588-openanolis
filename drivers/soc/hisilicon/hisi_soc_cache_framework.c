@@ -154,9 +154,11 @@ static int hisi_soc_cache_maint_pte_entry(pte_t *pte, unsigned long addr,
 				unsigned long next, struct mm_walk *walk)
 {
 #ifdef HISI_SOC_CACHE_LLT
-	unsigned int mnt_type = *((unsigned int *)walk->priv);
+	enum hisi_soc_cache_maint_type mnt_type =
+		*((enum hisi_soc_cache_maint_type *)walk->priv);
 #else
-	unsigned int mnt_type = *((unsigned int *)walk->private);
+	enum hisi_soc_cache_maint_type mnt_type =
+		*((enum hisi_soc_cache_maint_type *)walk->private);
 #endif
 	size_t size = next - addr;
 	phys_addr_t paddr;
