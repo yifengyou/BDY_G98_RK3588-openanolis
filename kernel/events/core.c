@@ -55,6 +55,7 @@
 #include <linux/pgtable.h>
 #include <linux/buildid.h>
 #include <linux/task_work.h>
+#include <linux/kvm_types.h>
 
 #include "internal.h"
 
@@ -6034,7 +6035,7 @@ int perf_create_mediated_pmu(void)
 	atomic_inc(&nr_mediated_pmu_vms);
 	return 0;
 }
-EXPORT_SYMBOL_GPL(perf_create_mediated_pmu);
+EXPORT_SYMBOL_FOR_KVM(perf_create_mediated_pmu);
 
 void perf_release_mediated_pmu(void)
 {
@@ -6043,7 +6044,7 @@ void perf_release_mediated_pmu(void)
 
 	atomic_dec(&nr_mediated_pmu_vms);
 }
-EXPORT_SYMBOL_GPL(perf_release_mediated_pmu);
+EXPORT_SYMBOL_FOR_KVM(perf_release_mediated_pmu);
 
 /* When loading a guest's mediated PMU, schedule out all exclude_guest events. */
 void perf_load_guest_context(void)
