@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <sys/mman.h>
 #include <unistd.h>
-#include <uapi/linux/types.h>
+
 #include <linux/iommufd.h>
 #include <linux/limits.h>
 #include <linux/mman.h>
