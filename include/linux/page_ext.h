@@ -78,6 +78,7 @@ static inline void page_ext_init(void)
 #endif
 
 extern struct page_ext *page_ext_get(struct page *page);
+extern struct page_ext *page_ext_from_phys(phys_addr_t phys);
 extern void page_ext_put(struct page_ext *page_ext);
 
 static inline void *page_ext_data(struct page_ext *page_ext,
@@ -118,6 +119,11 @@ static inline void page_ext_init_flatmem(void)
 }
 
 static inline struct page_ext *page_ext_get(struct page *page)
+{
+	return NULL;
+}
+
+static inline struct page_ext *page_ext_from_phys(phys_addr_t phys)
 {
 	return NULL;
 }
