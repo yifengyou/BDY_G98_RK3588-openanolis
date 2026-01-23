@@ -2348,6 +2348,7 @@ struct msm_gpu *a6xx_gpu_init(struct drm_device *dev)
 	if (ret) {
 		a6xx_llc_slices_destroy(a6xx_gpu);
 		kfree(a6xx_gpu);
+		of_node_put(node);
 		return ERR_PTR(ret);
 	}
 
@@ -2357,6 +2358,7 @@ struct msm_gpu *a6xx_gpu_init(struct drm_device *dev)
 		ret = adreno_gpu_init(dev, pdev, adreno_gpu, &funcs, 1);
 	if (ret) {
 		a6xx_destroy(&(a6xx_gpu->base.base));
+		of_node_put(node);
 		return ERR_PTR(ret);
 	}
 
