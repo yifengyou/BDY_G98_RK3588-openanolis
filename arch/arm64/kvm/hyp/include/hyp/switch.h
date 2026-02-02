@@ -340,7 +340,8 @@ static inline void __hyp_sve_restore_guest(struct kvm_vcpu *vcpu)
 	sve_cond_update_zcr_vq(vcpu_sve_max_vq(vcpu) - 1, SYS_ZCR_EL2);
 	__sve_restore_state(vcpu_sve_pffr(vcpu),
 			    &vcpu->arch.ctxt.fp_regs.fpsr);
-	write_sysreg_el1(__vcpu_sys_reg(vcpu, ZCR_EL1), SYS_ZCR);
+
+	write_sysreg_el1(__vcpu_sys_reg(vcpu, vcpu_sve_zcr_elx(vcpu)), SYS_ZCR);
 }
 
 static inline void fpsimd_lazy_switch_to_guest(struct kvm_vcpu *vcpu)
@@ -355,7 +356,7 @@ static inline void fpsimd_lazy_switch_to_guest(struct kvm_vcpu *vcpu)
 
 		write_sysreg_el2(zcr_el2, SYS_ZCR);
 
-		zcr_el1 = __vcpu_sys_reg(vcpu, ZCR_EL1);
+		zcr_el1 = __vcpu_sys_reg(vcpu, vcpu_sve_zcr_elx(vcpu));
 		write_sysreg_el1(zcr_el1, SYS_ZCR);
 	}
 }
@@ -377,7 +378,7 @@ static inline void fpsimd_lazy_switch_to_host(struct kvm_vcpu *vcpu)
 	 */
 	if (vcpu_has_sve(vcpu)) {
 		zcr_el1 = read_sysreg_el1(SYS_ZCR);
-		__vcpu_sys_reg(vcpu, ZCR_EL1) = zcr_el1;
+		__vcpu_sys_reg(vcpu, vcpu_sve_zcr_elx(vcpu)) = zcr_el1;
 
 		/*
 		 * The guest's state is always saved using the guest's max VL.
