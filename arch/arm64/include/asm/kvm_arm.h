@@ -310,6 +310,12 @@
 				 GENMASK(19, 14) |	\
 				 BIT(11))
 
+#define CPTR_VHE_EL2_RES0	(GENMASK(63, 32) |	\
+				 GENMASK(27, 26) |	\
+				 GENMASK(23, 22) |	\
+				 GENMASK(19, 18) |	\
+				 GENMASK(15, 0))
+
 /*
  * FGT register definitions
  *
