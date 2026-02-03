@@ -412,6 +412,8 @@ static inline void fpsimd_lazy_switch_to_host(struct kvm_vcpu *vcpu)
 	}
 }
 
+static void kvm_hyp_save_fpsimd_host(struct kvm_vcpu *vcpu);
+
 /*
  * We trap the first access to the FP/SIMD to save the host context and
  * restore the guest context lazily.
@@ -454,6 +456,10 @@ static inline bool kvm_hyp_handle_fpsimd(struct kvm_vcpu *vcpu, u64 *exit_code)
 	else
 		cpacr_clear_set(0, CPACR_ELx_FPEN);
 	isb();
+
+	/* Write out the host state if it's in the registers */
+	if (is_protected_kvm_enabled() && host_owns_fp_regs())
+		kvm_hyp_save_fpsimd_host(vcpu);
 
 	/* Restore the guest state */
 	if (sve_guest)
