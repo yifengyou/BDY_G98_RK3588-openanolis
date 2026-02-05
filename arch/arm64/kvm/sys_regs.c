@@ -671,6 +671,7 @@ static bool trap_debug_regs(struct kvm_vcpu *vcpu,
 	if (p->is_write)
 		vcpu_set_flag(vcpu, DEBUG_DIRTY);
 
+	kvm_debug_set_guest_ownership(vcpu);
 	trace_trap_reg(__func__, r->reg, p->is_write, p->regval);
 
 	return true;
@@ -699,6 +700,7 @@ static void reg_to_dbg(struct kvm_vcpu *vcpu,
 	val |= (p->regval & (mask >> shift)) << shift;
 	*dbg_reg = val;
 
+	kvm_debug_set_guest_ownership(vcpu);
 	vcpu_set_flag(vcpu, DEBUG_DIRTY);
 }
 
