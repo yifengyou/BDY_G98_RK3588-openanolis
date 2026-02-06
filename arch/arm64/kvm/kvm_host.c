@@ -9,7 +9,8 @@
 
 #include "vgic/vgic.h"
 
-static enum kvm_mode kvm_mode = KVM_MODE_DEFAULT;
+enum kvm_mode kvm_mode __ro_after_init = KVM_MODE_DEFAULT;
+EXPORT_SYMBOL_FOR_KVM(kvm_mode);
 
 DEFINE_STATIC_KEY_FALSE(kvm_protected_mode_initialized);
 EXPORT_SYMBOL_FOR_KVM(kvm_protected_mode_initialized);
