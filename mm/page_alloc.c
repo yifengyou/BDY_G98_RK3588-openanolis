@@ -1226,6 +1226,7 @@ __always_inline bool free_pages_prepare(struct page *page,
 	kidled_set_folio_age(page_pgdat(page), page_to_pfn(page), 0);
 #endif
 	page->flags &= ~PAGE_FLAGS_CHECK_AT_PREP | __PG_KFENCE;
+	page->private = 0;
 	reset_page_owner(page, order);
 	page_table_check_free(page, order);
 	pgalloc_tag_sub(page, 1 << order);
