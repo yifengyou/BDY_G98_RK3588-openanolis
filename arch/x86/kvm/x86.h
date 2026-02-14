@@ -38,6 +38,7 @@ struct kvm_caps {
 	u64 inapplicable_quirks;
 };
 
+extern bool kvm_rebooting;
 void kvm_spurious_fault(void);
 
 #define KVM_NESTED_VMENTER_CONSISTENCY_CHECK(consistency_check)		\
