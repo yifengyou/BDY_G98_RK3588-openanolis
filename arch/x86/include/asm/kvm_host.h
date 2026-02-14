@@ -37,7 +37,7 @@
 #include <asm/kvm_page_track.h>
 #include <asm/kvm_vcpu_regs.h>
 #include <asm/hyperv-tlfs.h>
-#include <asm/reboot.h>
+#include <asm/virt.h>
 
 #define __KVM_HAVE_ARCH_VCPU_DEBUGFS
 

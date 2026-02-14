@@ -512,15 +512,6 @@ static void __svm_write_tsc_multiplier(u64 multiplier)
 
 static void svm_emergency_disable_virtualization_cpu(void)
 {
-	/*
-	 * Transitional shim: force GIF=1, clear EFER.SVME and set
-	 * virt_rebooting so emergency semantics stay complete between
-	 * this commit and the follow-up that moves the emergency
-	 * dispatch into the virt subsystem.  The next commit removes
-	 * this call because virt_ops will invoke
-	 * x86_svm_emergency_disable_virtualization_cpu() directly.
-	 */
-	x86_svm_emergency_disable_virtualization_cpu();
 	wrmsrl(MSR_VM_HSAVE_PA, 0);
 }
 
