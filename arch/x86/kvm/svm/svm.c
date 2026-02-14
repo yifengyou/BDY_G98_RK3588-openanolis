@@ -42,6 +42,7 @@
 #include <asm/traps.h>
 #include <asm/reboot.h>
 #include <asm/fpu/api.h>
+#include <asm/virt.h>
 #include <asm/processor-hygon.h>
 
 #include <trace/events/ipi.h>
@@ -527,7 +528,7 @@ static inline void kvm_cpu_svm_disable(void)
 
 static void svm_emergency_disable_virtualization_cpu(void)
 {
-	kvm_rebooting = true;
+	virt_rebooting = true;
 
 	kvm_cpu_svm_disable();
 }
