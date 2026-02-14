@@ -510,27 +510,18 @@ static void __svm_write_tsc_multiplier(u64 multiplier)
 	__this_cpu_write(current_tsc_ratio, multiplier);
 }
 
-static inline void kvm_cpu_svm_disable(void)
-{
-	uint64_t efer;
-
-	wrmsrl(MSR_VM_HSAVE_PA, 0);
-	rdmsrl(MSR_EFER, efer);
-	if (efer & EFER_SVME) {
-		/*
-		 * Force GIF=1 prior to disabling SVM, e.g. to ensure INIT and
-		 * NMI aren't blocked.
-		 */
-		stgi();
-		wrmsrl(MSR_EFER, efer & ~EFER_SVME);
-	}
-}
-
 static void svm_emergency_disable_virtualization_cpu(void)
 {
-	virt_rebooting = true;
-
-	kvm_cpu_svm_disable();
+	/*
+	 * Transitional shim: force GIF=1, clear EFER.SVME and set
+	 * virt_rebooting so emergency semantics stay complete between
+	 * this commit and the follow-up that moves the emergency
+	 * dispatch into the virt subsystem.  The next commit removes
+	 * this call because virt_ops will invoke
+	 * x86_svm_emergency_disable_virtualization_cpu() directly.
+	 */
+	x86_svm_emergency_disable_virtualization_cpu();
+	wrmsrl(MSR_VM_HSAVE_PA, 0);
 }
 
 static void svm_disable_virtualization_cpu(void)
@@ -539,7 +530,8 @@ static void svm_disable_virtualization_cpu(void)
 	if (tsc_scaling)
 		__svm_write_tsc_multiplier(SVM_TSC_RATIO_DEFAULT);
 
-	kvm_cpu_svm_disable();
+	x86_svm_disable_virtualization_cpu();
+	wrmsrl(MSR_VM_HSAVE_PA, 0);
 
 	amd_pmu_disable_virt();
 }
@@ -548,12 +540,12 @@ static int svm_enable_virtualization_cpu(void)
 {
 
 	struct svm_cpu_data *sd;
-	uint64_t efer;
 	int me = raw_smp_processor_id();
+	int r;
 
-	rdmsrl(MSR_EFER, efer);
-	if (efer & EFER_SVME)
-		return -EBUSY;
+	r = x86_svm_enable_virtualization_cpu();
+	if (r)
+		return r;
 
 	sd = per_cpu_ptr(&svm_data, me);
 	/*
@@ -566,8 +558,6 @@ static int svm_enable_virtualization_cpu(void)
 	sd->next_asid = sd->max_asid + 1;
 	sd->min_asid = max_sev_asid + 1;
 
-	wrmsrl(MSR_EFER, efer | EFER_SVME);
-
 	wrmsrl(MSR_VM_HSAVE_PA, sd->save_area_pa);
 
 	if (static_cpu_has(X86_FEATURE_TSCRATEMSR)) {
@@ -577,7 +567,6 @@ static int svm_enable_virtualization_cpu(void)
 		 */
 		__svm_write_tsc_multiplier(SVM_TSC_RATIO_DEFAULT);
 	}
-
 
 	/*
 	 * Get OSVW bits.
