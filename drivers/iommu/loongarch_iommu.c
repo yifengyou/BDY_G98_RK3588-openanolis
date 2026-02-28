@@ -35,6 +35,7 @@
 #include <linux/err.h>
 #include <linux/pci_regs.h>
 #include "loongarch_iommu.h"
+#include "loongarch_iommu_mem.h"
 
 MODULE_LICENSE("GPL");
 
@@ -534,22 +535,22 @@ static void free_pagetable(void *pt_base, int level)
 
 	ptep = pt_base;
 	if (level == IOMMU_PT_LEVEL1) {
-		kfree(pt_base);
+		loongarch_iommu_free_page(pt_base);
 		return;
 	}
 	for (i = 0; i < IOMMU_PTRS_PER_LEVEL; i++, ptep++) {
 		if (!iommu_pte_present(ptep))
 			continue;
 
-		if (((level - 1) == IOMMU_PT_LEVEL1) && iommu_pte_huge(ptep)) {
+		if (iommu_pte_huge(ptep)) {
 			*ptep = 0;
 			continue;
 		}
 
-		pgtable = phys_to_virt(*ptep & IOMMU_PAGE_MASK);
+		pgtable = iommu_phys_to_virt(*ptep & IOMMU_PAGE_MASK);
 		free_pagetable(pgtable, level - 1);
 	}
-	kfree(pt_base);
+	loongarch_iommu_free_page(pt_base);
 }
 
 static void iommu_free_pagetable(struct dom_info *info)
@@ -566,7 +567,7 @@ static struct dom_info *alloc_dom_info(void)
 	if (info == NULL)
 		return NULL;
 
-	info->pgd = kzalloc(IOMMU_PAGE_SIZE, GFP_KERNEL_ACCOUNT);
+	info->pgd = loongarch_iommu_alloc_page();
 	if (info->pgd == NULL) {
 		kfree(info);
 		return NULL;
@@ -584,7 +585,7 @@ static struct dom_info *alloc_dom_info(void)
 static void dom_info_free(struct dom_info *info)
 {
 	if (info->pgd != NULL) {
-		kfree(info->pgd);
+		loongarch_iommu_free_page(info->pgd);
 		info->pgd = NULL;
 	}
 	kfree(info);
@@ -782,7 +783,7 @@ struct iommu_info *domain_attach_iommu(struct dom_info *priv, struct loongarch_i
 		return NULL;
 	}
 
-	phys = virt_to_phys(priv->pgd);
+	phys = iommu_virt_to_phys(priv->pgd);
 	dir_ctrl = (IOMMU_LEVEL_STRIDE << 26) | (IOMMU_LEVEL_SHIFT(2) << 20);
 	dir_ctrl |= (IOMMU_LEVEL_STRIDE <<  16) | (IOMMU_LEVEL_SHIFT(1) << 10);
 	dir_ctrl |= (IOMMU_LEVEL_STRIDE << 6) | IOMMU_LEVEL_SHIFT(0);
@@ -933,7 +934,7 @@ static unsigned long *iommu_get_pte(void *pt_base, unsigned long vaddr, int leve
 			break;
 		if (iommu_pte_huge(ptep))
 			break;
-		pgtable = phys_to_virt(*ptep & IOMMU_PAGE_MASK);
+		pgtable = iommu_phys_to_virt(*ptep & IOMMU_PAGE_MASK);
 	}
 	return ptep;
 }
@@ -944,10 +945,10 @@ static int iommu_get_page_table(unsigned long *ptep)
 	unsigned long pte;
 
 	if (!iommu_pte_present(ptep)) {
-		addr = kzalloc(IOMMU_PAGE_SIZE, GFP_KERNEL_ACCOUNT);
+		addr = loongarch_iommu_alloc_page();
 		if (!addr)
 			return -ENOMEM;
-		pte = virt_to_phys(addr) & IOMMU_PAGE_MASK;
+		pte = iommu_virt_to_phys(addr) & IOMMU_PAGE_MASK;
 		pte |= IOMMU_PTE_RW;
 		*ptep = pte;
 	}
@@ -1001,7 +1002,7 @@ static size_t iommu_page_map(void *pt_base,
 			ret = iommu_get_page_table(ptep);
 			if (ret != 0)
 				break;
-			pgtable = phys_to_virt(*ptep & IOMMU_PAGE_MASK);
+			pgtable = iommu_phys_to_virt(*ptep & IOMMU_PAGE_MASK);
 			iommu_page_map(pgtable, start, next, paddr, level - 1);
 		}
 
@@ -1022,7 +1023,7 @@ static void switch_huge_to_page(unsigned long *ptep, unsigned long start)
 	*ptep = 0;
 	ret = iommu_get_page_table(ptep);
 	if (ret == 0) {
-		pgtable = phys_to_virt(*ptep & IOMMU_PAGE_MASK);
+		pgtable = iommu_phys_to_virt(*ptep & IOMMU_PAGE_MASK);
 		iommu_page_map(pgtable, start, next, paddr, 0);
 	}
 }
@@ -1075,7 +1076,7 @@ static size_t iommu_page_unmap(void *pt_base,
 				"Map pte on hugepage not supported now\n");
 				*ptep = 0;
 			} else {
-				pgtable = phys_to_virt(*ptep & IOMMU_PAGE_MASK);
+				pgtable = iommu_phys_to_virt(*ptep & IOMMU_PAGE_MASK);
 				iommu_page_unmap(pgtable, start,
 						next, level - 1);
 			}
