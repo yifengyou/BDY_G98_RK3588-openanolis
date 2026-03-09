@@ -584,18 +584,16 @@ static inline size_t obj_exts_alloc_size(struct kmem_cache *s, size_t sz,
 {
 	struct kmem_cache *obj_exts_cache;
 
-	/*
-	 * slabobj_ext array for KMALLOC_CGROUP allocations
-	 * are served from KMALLOC_NORMAL caches.
-	 */
-	if (!mem_alloc_profiling_enabled())
-		return sz;
-
 	if (sz > KMALLOC_MAX_CACHE_SIZE)
 		return sz;
 
-	/* Only kmalloc caches can allocate obj_exts from themselves */
-	if (!(s->flags & SLAB_KMALLOC))
+	/*
+	 * Only KMALLOC_NORMAL caches can allocate obj_exts from themselves:
+	 * the array itself is always served from KMALLOC_NORMAL caches
+	 * (OBJCGS_CLEAR_MASK removes the DMA/RECLAIMABLE/ACCOUNT bits).
+	 */
+	if (!(s->flags & SLAB_KMALLOC) ||
+	    (s->flags & (SLAB_CACHE_DMA | SLAB_ACCOUNT | SLAB_RECLAIM_ACCOUNT)))
 		return sz;
 
 	obj_exts_cache = kmalloc_slab(sz, gfp, 0);
