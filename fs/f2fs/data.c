@@ -158,7 +158,8 @@ static void f2fs_finish_read_bio(struct bio *bio, bool in_task)
 			SetPageUptodate(page);
 		dec_page_count(F2FS_P_SB(page), __read_io_type(page));
 
-		if (F2FS_P_SB(page)->node_inode &&
+		if (bio->bi_status == BLK_STS_OK &&
+			F2FS_P_SB(page)->node_inode &&
 			page->mapping == NODE_MAPPING(F2FS_P_SB(page)) &&
 			f2fs_sanity_check_node_footer(F2FS_P_SB(page),
 				page, page->index, NODE_TYPE_REGULAR, true))
