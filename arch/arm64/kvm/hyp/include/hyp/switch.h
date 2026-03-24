@@ -343,7 +343,8 @@ static inline void __hyp_sve_restore_guest(struct kvm_vcpu *vcpu)
 	 */
 	sve_cond_update_zcr_vq(vcpu_sve_max_vq(vcpu) - 1, SYS_ZCR_EL2);
 	__sve_restore_state(vcpu_sve_pffr(vcpu),
-			    &vcpu->arch.ctxt.fp_regs.fpsr);
+			    &vcpu->arch.ctxt.fp_regs.fpsr,
+			    true);
 
 	/*
 	 * The effective VL for a VM could differ from the max VL when running a
