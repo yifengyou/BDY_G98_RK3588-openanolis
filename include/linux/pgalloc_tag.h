@@ -63,9 +63,16 @@ static inline void pgalloc_tag_add(struct page *page, struct task_struct *task,
 	if (mem_alloc_profiling_enabled()) {
 		union codetag_ref *ref = get_page_tag_ref(page);
 
-		if (ref) {
+		if (likely(ref)) {
 			alloc_tag_add(ref, task->alloc_tag, PAGE_SIZE * nr);
 			put_page_tag_ref(ref);
+		} else {
+			/*
+			 * page_ext is not available yet, record the pfn so we
+			 * can clear the tag ref later when page_ext is
+			 * initialized.
+			 */
+			alloc_tag_add_early_page(page);
 		}
 	}
 }
@@ -91,7 +98,7 @@ static inline struct alloc_tag *pgalloc_tag_get(struct page *page)
 
 		alloc_tag_sub_check(ref);
 		if (ref) {
-			if (ref->ct)
+			if (ref->ct && !is_codetag_empty(ref))
 				tag = ct_to_alloc_tag(ref->ct);
 			put_page_tag_ref(ref);
 		}
