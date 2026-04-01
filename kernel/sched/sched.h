@@ -115,6 +115,7 @@ enum migration_type {
 	migrate_util,
 	migrate_task,
 	migrate_misfit,
+	migrate_llc_task,
 	migrate_identity
 };
 
