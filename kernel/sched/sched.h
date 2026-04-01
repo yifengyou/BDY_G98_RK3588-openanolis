@@ -155,6 +155,16 @@ enum group_type {
 	 */
 	group_imbalanced,
 	/*
+	 * There are tasks running on non-preferred LLC, possible to move
+	 * them to their preferred LLC without creating too much imbalance.
+	 * The priority of group_llc_balance is lower than that of
+	 * group_overloaded and higher than that of all other group types.
+	 * This is because group_llc_balance may exacerbate load imbalance.
+	 * If the LLC balancing attempt fails, the nr_balance_failed
+	 * mechanism will trigger other group types to rebalance the load.
+	 */
+	group_llc_balance,
+	/*
 	 * The CPU is overloaded and can't provide expected CPU cycles to all
 	 * tasks.
 	 */
@@ -179,6 +189,7 @@ struct sg_lb_stats {
 	enum group_type group_type;
 	unsigned int group_asym_packing; /* Tasks should be moved to preferred CPU */
 	unsigned int group_smt_balance;  /* Task on busy SMT be moved */
+	unsigned int group_llc_balance;  /* Tasks should be moved to preferred LLC */
 	unsigned long group_misfit_task_load; /* A CPU has a task too big for its capacity */
 #ifdef CONFIG_NUMA_BALANCING
 	unsigned int nr_numa_running;

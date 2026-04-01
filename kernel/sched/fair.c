@@ -12918,6 +12918,9 @@ group_type group_classify(unsigned int imbalance_pct,
 	if (group_is_overloaded(imbalance_pct, sgs))
 		return group_overloaded;
 
+	if (sgs->group_llc_balance)
+		return group_llc_balance;
+
 	if (sg_imbalanced(group))
 		return group_imbalanced;
 
@@ -13109,10 +13112,62 @@ static void record_sg_llc_stats(struct lb_env *env,
 	if (unlikely(READ_ONCE(sd_share->capacity) != sgs->group_capacity))
 		WRITE_ONCE(sd_share->capacity, sgs->group_capacity);
 }
+
+/*
+ * Do LLC balance on sched group that contains LLC, and have tasks preferring
+ * to run on LLC in idle dst_cpu.
+ */
+static inline bool llc_balance(struct lb_env *env, struct sg_lb_stats *sgs,
+			       struct sched_group *group)
+{
+	if (!sched_cache_enabled())
+		return false;
+
+	if (env->sd->flags & SD_SHARE_LLC)
+		return false;
+
+	/*
+	 * Skip cache aware tagging if nr_balanced_failed is sufficiently high.
+	 * Threshold of cache_nice_tries is set to 1 higher than nr_balance_failed
+	 * to avoid excessive task migration at the same time.
+	 */
+	if (env->sd->nr_balance_failed >= env->sd->cache_nice_tries + 1)
+		return false;
+
+	if (sgs->nr_pref_dst_llc &&
+	    can_migrate_llc(cpumask_first(sched_group_span(group)),
+			    env->dst_cpu, 0, true) == mig_llc)
+		return true;
+
+	return false;
+}
+
+static bool update_llc_busiest(struct lb_env *env,
+			       struct sg_lb_stats *busiest,
+			       struct sg_lb_stats *sgs)
+{
+	/*
+	 * There are more tasks that want to run on dst_cpu's LLC.
+	 */
+	return sgs->nr_pref_dst_llc > busiest->nr_pref_dst_llc;
+}
 #else
 static inline void record_sg_llc_stats(struct lb_env *env, struct sg_lb_stats *sgs,
 				       struct sched_group *group)
 {
+}
+
+static inline bool llc_balance(struct lb_env *env, struct sg_lb_stats *sgs,
+			       struct sched_group *group)
+{
+	return false;
+}
+
+static bool update_llc_busiest(struct lb_env *env,
+			       struct sg_lb_stats *busiest,
+			       struct sg_lb_stats *sgs)
+{
+	return false;
 }
 #endif
 
@@ -13213,6 +13268,10 @@ static inline void update_sg_lb_stats(struct lb_env *env,
 		/* Check for loaded SMT group to be balanced to dst CPU */
 		if (smt_balance(env, sgs, group))
 			sgs->group_smt_balance = 1;
+
+		/* Check for tasks in this group can be moved to their preferred LLC */
+		if (llc_balance(env, sgs, group))
+			sgs->group_llc_balance = 1;
 	}
 
 	sgs->group_type = group_classify(env->sd->imbalance_pct, group, sgs);
@@ -13277,6 +13336,10 @@ static bool update_sd_pick_busiest(struct lb_env *env,
 		if (sgs->avg_load <= busiest->avg_load)
 			return false;
 		break;
+
+	case group_llc_balance:
+		/* Select the group with most tasks preferring dst LLC */
+		return update_llc_busiest(env, busiest, sgs);
 
 	case group_imbalanced:
 		/*
@@ -13545,6 +13608,7 @@ static bool update_pick_idlest(struct sched_group *idlest,
 			return false;
 		break;
 
+	case group_llc_balance:
 	case group_imbalanced:
 	case group_asym_packing:
 	case group_smt_balance:
@@ -13677,6 +13741,7 @@ find_idlest_group(struct sched_domain *sd, struct task_struct *p, int this_cpu)
 			return NULL;
 		break;
 
+	case group_llc_balance:
 	case group_imbalanced:
 	case group_asym_packing:
 	case group_smt_balance:
@@ -14191,7 +14256,8 @@ static struct sched_group *find_busiest_group(struct lb_env *env)
 	 * group's child domain.
 	 */
 	if (sds.prefer_sibling && local->group_type == group_has_spare &&
-	    sibling_imbalance(env, &sds, busiest, local) > 1)
+	    (busiest->group_type == group_llc_balance ||
+	    sibling_imbalance(env, &sds, busiest, local) > 1))
 		goto force_balance;
 
 	if (busiest->group_type != group_overloaded) {
