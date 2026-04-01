@@ -82,6 +82,11 @@ struct sched_domain_shared {
 	atomic_t	nr_busy_cpus;
 	int		has_idle_cores;
 	int		nr_idle_scan;
+#ifdef CONFIG_SCHED_CACHE
+	unsigned long	util_avg;
+	unsigned long	capacity;
+#endif
+
 
 	CK_KABI_RESERVE(1)
 	CK_KABI_RESERVE(2)
