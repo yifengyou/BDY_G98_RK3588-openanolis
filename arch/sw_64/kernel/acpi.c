@@ -398,3 +398,14 @@ void __init acpi_boot_table_init(void)
 		return;
 	}
 }
+
+int acpi_get_cpu_uid(unsigned int cpu, u32 *uid)
+{
+	if (cpu >= nr_cpu_ids)
+		return -EINVAL;
+
+	/* We take rcid as processor _UID */
+	*uid = cpu_physical_id(cpu);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(acpi_get_cpu_uid);

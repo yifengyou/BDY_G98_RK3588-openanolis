@@ -113,12 +113,6 @@ static inline void arch_acpi_set_pdc_bits(u32 *buf)
 {
 }
 
-static inline u32 get_acpi_id_for_cpu(unsigned int cpu)
-{
-	/* We take rcid as processor _UID */
-	return cpu_physical_id(cpu);
-}
-
 static inline unsigned long acpi_get_wakeup_address(void)
 {
 	return 0;
