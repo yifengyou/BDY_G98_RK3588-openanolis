@@ -1445,6 +1445,7 @@ struct task_struct {
 
 #ifdef CONFIG_SCHED_CACHE
 	struct callback_head		cache_work;
+	int				preferred_llc;
 #endif
 
 	struct tlbflush_unmap_batch	tlb_ubc;
