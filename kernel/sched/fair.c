@@ -13158,6 +13158,20 @@ static inline void update_sg_lb_stats(struct lb_env *env,
 		sgs->nr_numa_running += rq->nr_numa_running;
 		sgs->nr_preferred_running += rq->nr_preferred_running;
 #endif
+#ifdef CONFIG_SCHED_CACHE
+		if (sched_cache_enabled()) {
+			struct sched_domain *sd_tmp;
+			int dst_llc;
+
+			dst_llc = llc_id(env->dst_cpu);
+			if (llc_id(i) != dst_llc) {
+				sd_tmp = rcu_dereference_all(rq->sd);
+				if (sd_tmp && (unsigned int)dst_llc < sd_tmp->llc_max)
+					sgs->nr_pref_dst_llc += sd_tmp->llc_counts[dst_llc];
+			}
+		}
+#endif
+
 		/*
 		 * No need to call idle_cpu() if nr_running is not 0
 		 */

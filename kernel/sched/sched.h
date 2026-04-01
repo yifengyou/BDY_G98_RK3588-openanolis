@@ -184,6 +184,9 @@ struct sg_lb_stats {
 	unsigned int nr_numa_running;
 	unsigned int nr_preferred_running;
 #endif
+#ifdef CONFIG_SCHED_CACHE
+	unsigned int nr_pref_dst_llc;
+#endif
 };
 
 struct lb_env {
