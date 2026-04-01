@@ -1888,6 +1888,14 @@ extern bool task_is_expellee(struct task_struct *p);
 static inline void sched_core_identity_attach(struct cgroup_taskset *tset) { }
 #endif
 
+static inline bool task_has_sched_core(struct task_struct *p)
+{
+	if (sched_core_disabled())
+		return false;
+
+	return !!p->core_cookie;
+}
+
 #else /* !CONFIG_SCHED_CORE */
 
 static inline bool sched_core_enabled(struct rq *rq)
@@ -1927,6 +1935,12 @@ static inline bool sched_group_cookie_match(struct rq *rq,
 	return true;
 }
 static inline void sched_core_identity_attach(struct cgroup_taskset *tset) { }
+
+static inline bool task_has_sched_core(struct task_struct *p)
+{
+	return false;
+}
+
 #endif /* CONFIG_SCHED_CORE */
 #ifdef CONFIG_RT_GROUP_SCHED
 # ifdef CONFIG_RT_GROUP_SCHED_DEFAULT_DISABLED
