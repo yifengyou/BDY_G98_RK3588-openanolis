@@ -8413,6 +8413,8 @@ int sched_cpu_deactivate(unsigned int cpu)
 	 */
 	synchronize_rcu();
 
+	sched_domains_free_llc_id(cpu);
+
 	sched_set_rq_offline(rq, cpu);
 
 	scx_rq_deactivate(rq);
