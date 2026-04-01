@@ -811,6 +811,22 @@ struct bpf_mm_ops {
 };
 #endif
 
+#ifdef CONFIG_SCHED_CACHE
+struct sched_cache_time {
+	u64 runtime;
+	unsigned long epoch;
+};
+
+struct sched_cache_stat {
+	struct sched_cache_time __percpu *pcpu_sched;
+	raw_spinlock_t lock;
+	unsigned long epoch;
+	int cpu;
+} ____cacheline_aligned_in_smp;
+#else
+struct sched_cache_stat { };
+#endif
+
 struct kioctx_table;
 struct iommu_mm_data;
 struct mm_struct {
@@ -883,6 +899,9 @@ struct mm_struct {
 		 */
 		unsigned long mm_cid_next_scan;
 #endif
+
+		/* sched_cache related statistics */
+		struct sched_cache_stat sc_stat;
 #ifdef CONFIG_MMU
 		atomic_long_t pgtables_bytes;	/* size of all page tables */
 #endif
@@ -1287,6 +1306,34 @@ static inline unsigned int mm_cid_size(void)
 	return 0;
 }
 #endif /* CONFIG_SCHED_MM_CID */
+
+#ifdef CONFIG_SCHED_CACHE
+void mm_init_sched(struct mm_struct *mm,
+		   struct sched_cache_time __percpu *pcpu_sched);
+
+static inline int mm_alloc_sched(struct mm_struct *mm)
+{
+	struct sched_cache_time __percpu *pcpu_sched =
+		alloc_percpu(struct sched_cache_time);
+
+	if (!pcpu_sched)
+		return -ENOMEM;
+
+	mm_init_sched(mm, pcpu_sched);
+	return 0;
+}
+
+static inline void mm_destroy_sched(struct mm_struct *mm)
+{
+	free_percpu(mm->sc_stat.pcpu_sched);
+	mm->sc_stat.pcpu_sched = NULL;
+}
+#else /* !CONFIG_SCHED_CACHE */
+
+static inline int mm_alloc_sched(struct mm_struct *mm) { return 0; }
+static inline void mm_destroy_sched(struct mm_struct *mm) { }
+
+#endif /* CONFIG_SCHED_CACHE */
 
 struct mmu_gather;
 extern void tlb_gather_mmu(struct mmu_gather *tlb, struct mm_struct *mm);

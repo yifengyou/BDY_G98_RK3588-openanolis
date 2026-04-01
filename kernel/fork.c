@@ -976,6 +976,7 @@ void __mmdrop(struct mm_struct *mm)
 #ifdef CONFIG_ASYNC_FORK
 	BUG_ON(mm->async_fork_mm);
 #endif
+	mm_destroy_sched(mm);
 	mm_free_pgd(mm);
 	destroy_context(mm);
 	mmu_notifier_subscriptions_destroy(mm);
@@ -1370,10 +1371,15 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 	if (mm_alloc_cid(mm))
 		goto fail_cid;
 
+	if (mm_alloc_sched(mm))
+		goto fail_sched;
+
 	mm->user_ns = get_user_ns(user_ns);
 	lru_gen_init_mm(mm);
 	return mm;
 
+fail_sched:
+	mm_destroy_sched(mm);
 fail_cid:
 	destroy_context(mm);
 fail_nocontext:

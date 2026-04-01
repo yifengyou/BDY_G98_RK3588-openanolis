@@ -4518,6 +4518,7 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 #ifdef CONFIG_GROUP_IDENTITY
 	INIT_LIST_HEAD(&p->se.expel_node);
 #endif
+	init_sched_mm(p);
 }
 
 DEFINE_STATIC_KEY_FALSE(sched_numa_balancing);
@@ -8809,6 +8810,11 @@ void __init sched_init(void)
 #ifdef CONFIG_GROUP_BALANCER
 		rq->gb_sd = NULL;
 #endif
+#ifdef CONFIG_SCHED_CACHE
+		raw_spin_lock_init(&rq->cpu_epoch_lock);
+		rq->cpu_epoch_next = jiffies;
+#endif
+
 		zalloc_cpumask_var_node(&rq->scratch_mask, GFP_KERNEL, cpu_to_node(i));
 #ifdef CONFIG_GROUP_BALANCER
 		zalloc_cpumask_var_node(
