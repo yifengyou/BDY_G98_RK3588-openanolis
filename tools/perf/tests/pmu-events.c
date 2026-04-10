@@ -865,6 +865,92 @@ struct metric {
 	struct metric_ref metric_ref;
 };
 
+#if defined(__aarch64__)
+struct find_metric_expr_data {
+	const char *metric_name;
+	char *metric_expr;
+};
+
+static int find_metric_expr_callback(const struct pmu_metric *pm,
+				     const struct pmu_metrics_table *table __maybe_unused,
+				     void *vdata)
+{
+	struct find_metric_expr_data *data = vdata;
+
+	if (!pm->metric_name || !pm->metric_expr ||
+	    strcasecmp(pm->metric_name, data->metric_name))
+		return 0;
+
+	data->metric_expr = strdup(pm->metric_expr);
+	return 1;
+}
+
+static bool metric_expr_uses_slots(const struct pmu_metrics_table *table,
+				   const char *expr, int depth)
+{
+	struct expr_parse_ctx *ctx;
+	struct hashmap_entry *cur;
+	size_t bkt;
+	bool ret = false;
+
+	if (strstr(expr, "#slots"))
+		return true;
+
+	if (depth == 0)
+		return false;
+
+	ctx = expr__ctx_new();
+	if (!ctx)
+		return false;
+
+	if (expr__find_ids(expr, /*one=*/NULL, ctx) < 0)
+		goto out;
+
+	hashmap__for_each_entry(ctx->ids, cur, bkt) {
+		struct find_metric_expr_data data = {
+			.metric_name = cur->pkey,
+		};
+
+		if (!pmu_metrics_table__for_each_metric(table,
+							find_metric_expr_callback,
+							&data))
+			continue;
+
+		if (data.metric_expr &&
+		    metric_expr_uses_slots(table, data.metric_expr, depth - 1)) {
+			free(data.metric_expr);
+			ret = true;
+			goto out;
+		}
+		free(data.metric_expr);
+	}
+out:
+	expr__ctx_free(ctx);
+	return ret;
+}
+#endif
+
+static bool is_expected_broken_metric(const struct pmu_metrics_table *table __maybe_unused,
+				      const struct pmu_metric *pm)
+{
+	if (!strcmp(pm->metric_name, "M1") || !strcmp(pm->metric_name, "M2") ||
+	    !strcmp(pm->metric_name, "M3"))
+		return true;
+
+#if defined(__aarch64__)
+	/*
+	 * Arm64 platforms may return "#slots == 0", which is treated as a
+	 * syntax error by the parser. Don't test these metrics, or metrics
+	 * referencing them, when running on such platforms.
+	 */
+	if (isnan(perf_pmu__cpu_slots_per_cycle()) &&
+	    metric_expr_uses_slots(table, pm->metric_expr, /*depth=*/5))
+		return true;
+#endif
+
+	return false;
+}
+
 static int test__parsing_callback(const struct pmu_metric *pm,
 				  const struct pmu_metrics_table *table,
 				  void *data)
@@ -903,8 +989,7 @@ static int test__parsing_callback(const struct pmu_metric *pm,
 
 	err = metricgroup__parse_groups_test(evlist, table, pm->metric_name, &metric_events);
 	if (err) {
-		if (!strcmp(pm->metric_name, "M1") || !strcmp(pm->metric_name, "M2") ||
-		    !strcmp(pm->metric_name, "M3")) {
+		if (is_expected_broken_metric(table, pm)) {
 			(*failures)--;
 			pr_debug("Expected broken metric %s skipping\n", pm->metric_name);
 			err = 0;
