@@ -1832,7 +1832,7 @@ int kvm_handle_guest_abort(struct kvm_vcpu *vcpu)
 		 * There is no need to pass the error into the guest.
 		 */
 		if (kvm_handle_guest_sea(fault_ipa, kvm_vcpu_get_esr(vcpu)))
-			kvm_inject_vabt(vcpu);
+			return kvm_inject_serror(vcpu);
 
 		return 1;
 	}
