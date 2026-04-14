@@ -10,11 +10,11 @@
 #include <asm/kvm_hyp.h>
 #include <asm/kvm_mmu.h>
 
-static void fail_s1_walk(struct s1_walk_result *wr, u8 fst, bool ptw, bool s2)
+static void fail_s1_walk(struct s1_walk_result *wr, u8 fst, bool s1ptw)
 {
 	wr->fst		= fst;
-	wr->ptw		= ptw;
-	wr->s2		= s2;
+	wr->ptw		= s1ptw;
+	wr->s2		= s1ptw;
 	wr->failed	= true;
 }
 
@@ -256,11 +256,11 @@ static int setup_s1_walk(struct kvm_vcpu *vcpu, struct s1_walk_info *wi,
 	return 0;
 
 addrsz:				/* Address Size Fault level 0 */
-	fail_s1_walk(wr, ESR_ELx_FSC_ADDRSZ_L(0), false, false);
+	fail_s1_walk(wr, ESR_ELx_FSC_ADDRSZ_L(0), false);
 	return -EFAULT;
 
 transfault_l0:			/* Translation Fault level 0 */
-	fail_s1_walk(wr, ESR_ELx_FSC_FAULT_L(0), false, false);
+	fail_s1_walk(wr, ESR_ELx_FSC_FAULT_L(0), false);
 	return -EFAULT;
 }
 
@@ -291,13 +291,13 @@ static int walk_s1(struct kvm_vcpu *vcpu, struct s1_walk_info *wi,
 			if (ret) {
 				fail_s1_walk(wr,
 					     (s2_trans.esr & ~ESR_ELx_FSC_LEVEL) | level,
-					     true, true);
+					     true);
 				return ret;
 			}
 
 			if (!kvm_s2_trans_readable(&s2_trans)) {
 				fail_s1_walk(wr, ESR_ELx_FSC_PERM_L(level),
-					     true, true);
+					     true);
 
 				return -EPERM;
 			}
@@ -307,8 +307,7 @@ static int walk_s1(struct kvm_vcpu *vcpu, struct s1_walk_info *wi,
 
 		ret = kvm_read_guest(vcpu->kvm, ipa, &desc, sizeof(desc));
 		if (ret) {
-			fail_s1_walk(wr, ESR_ELx_FSC_SEA_TTW(level),
-				     true, false);
+			fail_s1_walk(wr, ESR_ELx_FSC_SEA_TTW(level), false);
 			return ret;
 		}
 
@@ -406,10 +405,10 @@ static int walk_s1(struct kvm_vcpu *vcpu, struct s1_walk_info *wi,
 	return 0;
 
 addrsz:
-	fail_s1_walk(wr, ESR_ELx_FSC_ADDRSZ_L(level), true, false);
+	fail_s1_walk(wr, ESR_ELx_FSC_ADDRSZ_L(level), false);
 	return -EINVAL;
 transfault:
-	fail_s1_walk(wr, ESR_ELx_FSC_FAULT_L(level), true, false);
+	fail_s1_walk(wr, ESR_ELx_FSC_FAULT_L(level), false);
 	return -ENOENT;
 }
 
@@ -1037,7 +1036,7 @@ static u64 handle_at_slow(struct kvm_vcpu *vcpu, u32 op, u64 vaddr)
 	}
 
 	if (perm_fail)
-		fail_s1_walk(&wr, ESR_ELx_FSC_PERM_L(wr.level), false, false);
+		fail_s1_walk(&wr, ESR_ELx_FSC_PERM_L(wr.level), false);
 
 compute_par:
 	return compute_par_s1(vcpu, &wr, wi.regime);
