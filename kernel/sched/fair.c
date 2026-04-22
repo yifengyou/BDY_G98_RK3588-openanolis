@@ -2178,7 +2178,7 @@ found:
 	return curr;
 }
 
-static struct sched_entity *pick_eevdf_protect(struct cfs_rq *cfs_rq, bool protect)
+static struct sched_entity *pick_eevdf(struct cfs_rq *cfs_rq, bool protect)
 {
 #ifdef CONFIG_GROUP_IDENTITY
 	if (sched_feat(ID_GI_STAT))
@@ -2188,11 +2188,6 @@ static struct sched_entity *pick_eevdf_protect(struct cfs_rq *cfs_rq, bool prote
 		return id_pick_eevdf(cfs_rq, protect);
 
 	return __pick_eevdf(cfs_rq, protect);
-}
-
-static struct sched_entity *pick_eevdf(struct cfs_rq *cfs_rq)
-{
-	return pick_eevdf_protect(cfs_rq, true);
 }
 
 #ifdef CONFIG_SCHED_DEBUG
@@ -2476,7 +2471,7 @@ static inline bool id_tick_preempt_needed(struct cfs_rq *cfs_rq,
 	if (is_highclass(curr))
 		return false;
 
-	se = pick_eevdf_protect(cfs_rq, false);
+	se = pick_eevdf(cfs_rq, false);
 	if (!se || se == curr)
 		return false;
 
@@ -7079,11 +7074,11 @@ static int dequeue_entities(struct rq *rq, struct sched_entity *se, int flags);
  * 4) do not run the "skip" process, if something else is available
  */
 static struct sched_entity *
-pick_next_entity(struct rq *rq, struct cfs_rq *cfs_rq)
+pick_next_entity(struct rq *rq, struct cfs_rq *cfs_rq, bool protect)
 {
 	struct sched_entity *se;
 
-	se = pick_eevdf(cfs_rq);
+	se = pick_eevdf(cfs_rq, protect);
 	if (se->sched_delayed) {
 		dequeue_entities(rq, se, DEQUEUE_SLEEP | DEQUEUE_DELAYED);
 		/*
@@ -10450,7 +10445,7 @@ static void check_preempt_wakeup_fair(struct rq *rq, struct task_struct *p, int 
 {
 	enum preempt_wakeup_action preempt_action = PREEMPT_WAKEUP_PICK;
 	struct task_struct *curr = rq->curr;
-	struct sched_entity *se = &curr->se, *pse = &p->se;
+	struct sched_entity *nse, *se = &curr->se, *pse = &p->se;
 	struct sched_entity *pse_task = pse;
 	struct cfs_rq *cfs_rq = task_cfs_rq(curr);
 	int cse_is_idle, pse_is_idle;
@@ -10569,11 +10564,17 @@ static void check_preempt_wakeup_fair(struct rq *rq, struct task_struct *p, int 
 	}
 
 pick:
-	/*
-	 * If @p has become the most eligible task, force preemption.
-	 */
-	if (pick_eevdf_protect(cfs_rq, preempt_action != PREEMPT_WAKEUP_SHORT) == pse)
+	nse = pick_next_entity(rq, cfs_rq, preempt_action != PREEMPT_WAKEUP_SHORT);
+	/* If @p has become the most eligible task, force preemption */
+	if (nse == pse)
 		goto preempt;
+
+	/*
+	 * Because p is enqueued, nse being null can only mean that we
+	 * dequeued a delayed task.
+	 */
+	if (!nse)
+		goto pick;
 
 	if (sched_feat(RUN_TO_PARITY))
 		update_protect_slice(cfs_rq, se);
@@ -10855,7 +10856,7 @@ again:
 
 		throttled |= check_cfs_rq_runtime(cfs_rq);
 
-		se = pick_next_entity(rq, cfs_rq);
+		se = pick_next_entity(rq, cfs_rq, true);
 		if (!se)
 			goto again;
 #ifdef CONFIG_GROUP_IDENTITY
