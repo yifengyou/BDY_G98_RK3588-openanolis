@@ -86,8 +86,15 @@ static int devm_cxl_add_endpoint(struct device *host, struct cxl_memdev *cxlmd,
 static int cxl_debugfs_poison_inject(void *data, u64 dpa)
 {
 	struct cxl_memdev *cxlmd = data;
+	int rc;
 
-	return cxl_inject_poison(cxlmd, dpa);
+	rc = device_lock_interruptible(&cxlmd->dev);
+	if (rc)
+		return rc;
+
+	rc = cxl_inject_poison(cxlmd, dpa);
+	device_unlock(&cxlmd->dev);
+	return rc;
 }
 
 DEFINE_DEBUGFS_ATTRIBUTE(cxl_poison_inject_fops, NULL,
@@ -96,8 +103,15 @@ DEFINE_DEBUGFS_ATTRIBUTE(cxl_poison_inject_fops, NULL,
 static int cxl_debugfs_poison_clear(void *data, u64 dpa)
 {
 	struct cxl_memdev *cxlmd = data;
+	int rc;
 
-	return cxl_clear_poison(cxlmd, dpa);
+	rc = device_lock_interruptible(&cxlmd->dev);
+	if (rc)
+		return rc;
+
+	rc = cxl_clear_poison(cxlmd, dpa);
+	device_unlock(&cxlmd->dev);
+	return rc;
 }
 
 DEFINE_DEBUGFS_ATTRIBUTE(cxl_poison_clear_fops, NULL,
