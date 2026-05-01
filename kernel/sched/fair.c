@@ -918,11 +918,11 @@ bool update_entity_lag(struct cfs_rq *cfs_rq, struct sched_entity *se)
  *
  * lag_i >= 0 -> V >= v_i
  *
- *     \Sum (v_i - v)*w_i
- * V = ------------------ + v
+ *     \Sum (v_i - v0)*w_i
+ * V = ------------------- + v0
  *          \Sum w_i
  *
- * lag_i >= 0 -> \Sum (v_i - v)*w_i >= (v_i - v)*(\Sum w_i)
+ * lag_i >= 0 -> \Sum (v_i - v0)*w_i >= (v_i - v0)*(\Sum w_i)
  *
  * Note: using 'avg_vruntime() > se->vruntime' is inacurate due
  *       to the loss in precision caused by the division.
@@ -930,7 +930,7 @@ bool update_entity_lag(struct cfs_rq *cfs_rq, struct sched_entity *se)
 static int vruntime_eligible(struct cfs_rq *cfs_rq, u64 vruntime)
 {
 	struct sched_entity *curr = cfs_rq->curr;
-	s64 avg = cfs_rq->sum_w_vruntime;
+	s64 key, avg = cfs_rq->sum_w_vruntime;
 	long load = cfs_rq->sum_weight;
 
 	if (curr && curr->on_rq) {
@@ -940,7 +940,36 @@ static int vruntime_eligible(struct cfs_rq *cfs_rq, u64 vruntime)
 		load += weight;
 	}
 
-	return avg >= vruntime_op(vruntime, "-", cfs_rq->zero_vruntime) * load;
+	key = vruntime_op(vruntime, "-", cfs_rq->zero_vruntime);
+
+	/*
+	 * The worst case term for @key includes 'NSEC_TICK * NICE_0_LOAD'
+	 * and @load obviously includes NICE_0_LOAD. NSEC_TICK is around 24
+	 * bits, while NICE_0_LOAD is 20 on 64bit and 10 otherwise.
+	 *
+	 * This gives that on 64bit the product will be at least 64bit which
+	 * overflows s64, while on 32bit it will only be 44bits and should fit
+	 * comfortably.
+	 */
+#ifdef CONFIG_64BIT
+#ifdef CONFIG_ARCH_SUPPORTS_INT128
+	/* This often results in simpler code than __builtin_mul_overflow(). */
+	return avg >= (__int128)key * load;
+#else
+	s64 rhs;
+	/*
+	 * On overflow, the sign of key tells us the correct answer: a large
+	 * positive key means vruntime >> V, so not eligible; a large negative
+	 * key means vruntime << V, so eligible.
+	 */
+	if (check_mul_overflow(key, load, &rhs))
+		return key <= 0;
+
+	return avg >= rhs;
+#endif
+#else /* 32bit */
+	return avg >= key * load;
+#endif
 }
 
 int entity_eligible(struct cfs_rq *cfs_rq, struct sched_entity *se)
@@ -1885,11 +1914,48 @@ static inline void id_pick_eligible_data(struct cfs_rq *cfs_rq,
 	}
 }
 
+static inline s64 vruntime_eligibility_deficit(struct cfs_rq *cfs_rq,
+				       s64 avg, long load,
+				       u64 vruntime)
+{
+	s64 key = vruntime_op(vruntime, "-", cfs_rq->zero_vruntime);
+
+#ifdef CONFIG_64BIT
+#ifdef CONFIG_ARCH_SUPPORTS_INT128
+	__int128 deficit = (__int128)key * load - avg;
+
+	if (deficit > S64_MAX)
+		return S64_MAX;
+	if (deficit < S64_MIN)
+		return S64_MIN;
+
+	return deficit;
+#else
+	s64 rhs, deficit;
+
+	if (check_mul_overflow(key, load, &rhs))
+		return key <= 0 ? S64_MIN : S64_MAX;
+	if (check_sub_overflow(rhs, avg, &deficit))
+		return rhs < 0 ? S64_MIN : S64_MAX;
+
+	return deficit;
+#endif
+#else
+	return key * load - avg;
+#endif
+}
+
 static inline int vruntime_eligible_pick_avg(struct cfs_rq *cfs_rq,
 					    s64 avg, long load,
 					    u64 vruntime)
 {
-	return avg >= vruntime_op(vruntime, "-", cfs_rq->zero_vruntime) * load;
+#ifdef CONFIG_64BIT
+	return vruntime_eligibility_deficit(cfs_rq, avg, load, vruntime) <= 0;
+#else
+	s64 key = vruntime_op(vruntime, "-", cfs_rq->zero_vruntime);
+
+	return avg >= key * load;
+#endif
 }
 
 static inline int entity_eligible_pick(struct cfs_rq *cfs_rq,
@@ -1903,7 +1969,7 @@ static inline s64 entity_eligibility_deficit(struct cfs_rq *cfs_rq,
 				     s64 avg, long load,
 				     struct sched_entity *se)
 {
-	return vruntime_op(se->vruntime, "-", cfs_rq->zero_vruntime) * load - avg;
+	return vruntime_eligibility_deficit(cfs_rq, avg, load, se->vruntime);
 }
 
 static inline bool better_fallback_entity(struct cfs_rq *cfs_rq,
