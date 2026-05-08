@@ -369,7 +369,30 @@ struct iommu_pages_list {
 struct iommu_iotlb_gather {
 	unsigned long		start;
 	unsigned long		end;
-	size_t			pgsize;
+
+	union {
+		/**
+		 * @pgsize: The interval at which to perform the flush, only
+		 *          used by arm-smmu-v3
+		 */
+		size_t pgsize;
+		struct {
+			/**
+			 * @pt.leaf_levels_bitmap: Bitmap of generic_pt levels where
+			 * leaf entries were unmapped. Bit 0 means the leaf only level.
+			 * If 0 no leafs were unmapped.
+			 */
+			u8 leaf_levels_bitmap;
+			/**
+			 * @pt.table_levels_bitmap: Bitmap of generic_pt levels of
+			 * table entries that were removed. Bit 0 is never set, bit 1
+			 * means a table of all leafs was removed. When freelist is
+			 * empty this must be 0.
+			 */
+			u8 table_levels_bitmap;
+		} pt;
+	};
+
 	struct iommu_pages_list	freelist;
 	bool			queued;
 
