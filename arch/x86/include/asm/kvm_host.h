@@ -1784,8 +1784,7 @@ struct kvm_x86_ops {
 				 kvm_pfn_t pfn_for_gfn);
 
 	/* Update external page tables for page table about to be freed. */
-	int (*free_external_spt)(struct kvm *kvm, gfn_t gfn, enum pg_level level,
-				 void *external_spt);
+	void (*free_external_spt)(struct kvm *kvm, struct kvm_mmu_page *sp);
 
 	/* Update external page table from spte getting removed, and flush TLB. */
 	int (*remove_external_spte)(struct kvm *kvm, gfn_t gfn, enum pg_level level,
