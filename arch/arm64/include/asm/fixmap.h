@@ -48,7 +48,7 @@ enum fixed_addresses {
 	FIX_EARLYCON_MEM_BASE,
 	FIX_TEXT_POKE0,
 
-#ifdef CONFIG_KVM
+#if IS_ENABLED(CONFIG_KVM)
 	/* One slot per CPU, mapping the guest's VNCR page at EL2. */
 	FIX_VNCR_END,
 	FIX_VNCR = FIX_VNCR_END + NR_CPUS,

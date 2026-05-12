@@ -127,6 +127,7 @@ void __set_fixmap(enum fixed_addresses idx,
 		flush_tlb_kernel_range(addr, addr+PAGE_SIZE);
 	}
 }
+EXPORT_SYMBOL_FOR_KVM(__set_fixmap);
 
 void *__init fixmap_remap_fdt(phys_addr_t dt_phys, int *size, pgprot_t prot)
 {
