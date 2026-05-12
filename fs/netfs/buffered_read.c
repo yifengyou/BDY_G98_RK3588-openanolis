@@ -412,7 +412,7 @@ retry:
 
 	ret = netfs_begin_read(rreq, true);
 	if (ret < 0)
-		goto error;
+		goto error_put;
 
 have_folio:
 	ret = folio_wait_fscache_killable(folio);
