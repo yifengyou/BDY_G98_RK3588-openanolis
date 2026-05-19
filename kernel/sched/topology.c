@@ -636,6 +636,12 @@ static void free_sched_groups(struct sched_group *sg, int free_sgc)
 	} while (sg != first);
 }
 
+static void free_sched_domain_shared(struct sched_domain_shared *sds)
+{
+	if (sds && atomic_dec_and_test(&sds->ref))
+		kfree(sds);
+}
+
 static void destroy_sched_domain(struct sched_domain *sd)
 {
 	/*
@@ -644,9 +650,7 @@ static void destroy_sched_domain(struct sched_domain *sd)
 	 * dropping group/capacity references, freeing where none remain.
 	 */
 	free_sched_groups(sd->groups, 1);
-
-	if (sd->shared && atomic_dec_and_test(&sd->shared->ref))
-		kfree(sd->shared);
+	free_sched_domain_shared(sd->shared);
 
 #ifdef CONFIG_SCHED_CACHE
 	/* only the bottom sd has llc_counts array */
@@ -771,7 +775,14 @@ cpu_attach_domain(struct sched_domain *sd, struct root_domain *rd, int cpu)
 
 			/* Pick reference to parent->shared. */
 			if (parent->shared) {
-				WARN_ON_ONCE(tmp->shared);
+				/*
+				 * It is safe to free a sd->shared that
+				 * has not been published yet. If a
+				 * sd->shared was published, the refcount
+				 * will end up being non-zero and it will
+				 * not be freed here.
+				 */
+				free_sched_domain_shared(tmp->shared);
 				tmp->shared = parent->shared;
 				parent->shared = NULL;
 			}
@@ -2875,6 +2886,88 @@ static void adjust_numa_imbalance(struct sched_domain *sd_llc)
 	}
 }
 
+static void
+init_sched_domain_shared(struct s_data *d, struct sched_domain *sd, int flags)
+{
+	struct sched_domain_shared *sds = NULL;
+	int cpu;
+
+	/*
+	 * Multiple domains can try to claim a shared object like
+	 * SD_ASYM_CPUCAPACITY and SD_SHARE_LLC which can alias to
+	 * same cpumask_first(sched_domain_span(sd)) CPU and can
+	 * cause "nr_idle_scan" to be populated incorrectly during
+	 * load balancing.
+	 *
+	 * Find the first CPU in sched_domain_span(sd) with an
+	 * unclaimed domain (!alloc_flags) or where the alloc_flag
+	 * matches the requested flag (SD_* flag)
+	 *
+	 * If the domain only has single CPU, allow temporary overlap
+	 * in allocation since the domains will be degenerated later.
+	 */
+	for_each_cpu(cpu, sched_domain_span(sd)) {
+		sds = *per_cpu_ptr(d->sds, cpu);
+
+		if (!sds->alloc_flags ||
+		    sd->span_weight == 1 ||
+		    sds->alloc_flags == flags) {
+			sds->alloc_flags = flags;
+			sd->shared = sds;
+			break;
+		}
+	}
+
+	/*
+	 * Use the sd_shared corresponding to the last
+	 * CPU in the span if none are avaialable.
+	 */
+	if (WARN_ON_ONCE(!sd->shared))
+		sd->shared = sds;
+
+	/*
+	 * nr_busy_cpus is consumed only by the NOHZ kick path via
+	 * sd_balance_shared; on the asym-capacity path it is initialized but
+	 * never read.
+	 */
+	atomic_set(&sd->shared->nr_busy_cpus, sd->span_weight);
+	atomic_inc(&sd->shared->ref);
+}
+
+/*
+ * For asymmetric CPU capacity, attach sched_domain_shared on the innermost
+ * SD_ASYM_CPUCAPACITY_FULL ancestor of @cpu's base domain when that ancestor is
+ * not an overlapping NUMA-built domain (then LLC should claim shared).
+ *
+ * A CPU may lack any FULL ancestor (e.g., exclusive cpuset symmetric island),
+ * then LLC must claim shared instead.
+ *
+ * Note: SD_ASYM_CPUCAPACITY_FULL is only set when all CPU capacity values
+ * are present in the domain span, so the asym domain we attach to cannot
+ * degenerate into a single-capacity group. The relevant edge cases are instead
+ * covered by the caveats above.
+ *
+ * Return true if this CPU's asym path claimed sd->shared, false otherwise.
+ */
+static bool claim_asym_sched_domain_shared(struct s_data *d, int cpu)
+{
+	struct sched_domain *sd = *per_cpu_ptr(d->sd, cpu);
+	struct sched_domain *sd_asym;
+
+	if (!sd)
+		return false;
+
+	sd_asym = sd;
+	while (sd_asym && !(sd_asym->flags & SD_ASYM_CPUCAPACITY_FULL))
+		sd_asym = sd_asym->parent;
+
+	if (!sd_asym || (sd_asym->flags & SD_NUMA))
+		return false;
+
+	init_sched_domain_shared(d, sd_asym, SD_ASYM_CPUCAPACITY);
+	return true;
+}
+
 static int __sched_domains_alloc_llc_id(void)
 {
 	int lid, max;
@@ -2928,54 +3021,6 @@ void sched_domains_free_llc_id(int cpu)
 	sched_domains_mutex_lock();
 	__sched_domains_free_llc_id(cpu);
 	sched_domains_mutex_unlock();
-}
-
-static void init_sched_domain_shared(struct s_data *d, struct sched_domain *sd)
-{
-	int sd_id = cpumask_first(sched_domain_span(sd));
-
-	sd->shared = *per_cpu_ptr(d->sds, sd_id);
-	/*
-	 * nr_busy_cpus is consumed only by the NOHZ kick path via
-	 * sd_balance_shared; on the asym-capacity path it is initialized but
-	 * never read.
-	 */
-	atomic_set(&sd->shared->nr_busy_cpus, sd->span_weight);
-	atomic_inc(&sd->shared->ref);
-}
-
-/*
- * For asymmetric CPU capacity, attach sched_domain_shared on the innermost
- * SD_ASYM_CPUCAPACITY_FULL ancestor of @cpu's base domain when that ancestor is
- * not an overlapping NUMA-built domain (then LLC should claim shared).
- *
- * A CPU may lack any FULL ancestor (e.g., exclusive cpuset symmetric island),
- * then LLC must claim shared instead.
- *
- * Note: SD_ASYM_CPUCAPACITY_FULL is only set when all CPU capacity values
- * are present in the domain span, so the asym domain we attach to cannot
- * degenerate into a single-capacity group. The relevant edge cases are instead
- * covered by the caveats above.
- *
- * Return true if this CPU's asym path claimed sd->shared, false otherwise.
- */
-static bool claim_asym_sched_domain_shared(struct s_data *d, int cpu)
-{
-	struct sched_domain *sd = *per_cpu_ptr(d->sd, cpu);
-	struct sched_domain *sd_asym;
-
-	if (!sd)
-		return false;
-
-	sd_asym = sd;
-	while (sd_asym && !(sd_asym->flags & SD_ASYM_CPUCAPACITY_FULL))
-		sd_asym = sd_asym->parent;
-
-	if (!sd_asym || (sd_asym->flags & SD_NUMA))
-		return false;
-
-	init_sched_domain_shared(d, sd_asym);
-	return true;
 }
 
 /*
@@ -3062,26 +3107,19 @@ build_sched_domains(const struct cpumask *cpu_map, struct sched_domain_attr *att
 	}
 
 	for_each_cpu(i, cpu_map) {
-		bool asym_claimed = false;
-
 		sd = *per_cpu_ptr(d.sd, i);
 		if (!sd)
 			continue;
 
 		if (has_asym)
-			asym_claimed = claim_asym_sched_domain_shared(&d, i);
+			claim_asym_sched_domain_shared(&d, i);
 
 		/* First, find the topmost SD_SHARE_LLC domain */
 		while (sd->parent && (sd->parent->flags & SD_SHARE_LLC))
 			sd = sd->parent;
 
 		if (sd->flags & SD_SHARE_LLC) {
-			/*
-			 * Initialize the sd->shared for SD_SHARE_LLC unless
-			 * the asym path above already claimed it.
-			 */
-			if (!asym_claimed)
-				init_sched_domain_shared(&d, sd);
+			init_sched_domain_shared(&d, sd, SD_SHARE_LLC);
 
 			/*
 			 * In presence of higher domains, adjust the
