@@ -1100,6 +1100,8 @@ static int flatten_lpi_states(struct acpi_processor *pr,
 				stash_composite_state(curr_level, flpi);
 				flat_state_cnt++;
 				flpi++;
+				if (flat_state_cnt >= ACPI_PROCESSOR_MAX_POWER)
+					break;
 			}
 		}
 	}
