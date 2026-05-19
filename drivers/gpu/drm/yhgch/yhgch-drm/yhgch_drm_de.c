@@ -80,7 +80,6 @@ static void yhgch_plane_atomic_update(struct drm_plane *plane,
 {
 	struct drm_plane_state *state = plane->state;
 	u32 reg;
-	int ret;
 	s64 gpu_addr = 0;
 	unsigned int line_l;
 	struct yhgch_drm_private *priv = plane->dev->dev_private;
@@ -91,32 +90,27 @@ static void yhgch_plane_atomic_update(struct drm_plane *plane,
 
 	gbo = drm_gem_vram_of_gem(state->fb->obj[0]);
 
-	ret = drm_gem_vram_pin(gbo, DRM_GEM_VRAM_PL_FLAG_VRAM);
-	if (ret) {
-		DRM_ERROR("failed to pin bo: %d", ret);
-		return;
-	}
 	gpu_addr = drm_gem_vram_offset(gbo);
 	if (gpu_addr < 0) {
-		drm_gem_vram_unpin(gbo);
+		printk("no gpu address\n");
 		return;
 	}
 
-	writel(gpu_addr, priv->mmio + INSPUR_CRT_FB_ADDRESS);
+	writel(gpu_addr, priv->mmio + YHGCH_CRT_FB_ADDRESS);
 
 	reg = state->fb->width * (state->fb->format->cpp[0]);
 
 	line_l = state->fb->pitches[0];
-	writel(INSPUR_FIELD(INSPUR_CRT_FB_WIDTH_WIDTH, reg) |
-	       INSPUR_FIELD(INSPUR_CRT_FB_WIDTH_OFFS, line_l),
-	       priv->mmio + INSPUR_CRT_FB_WIDTH);
+	writel(YHGCH_FIELD(YHGCH_CRT_FB_WIDTH_WIDTH, reg) |
+	       YHGCH_FIELD(YHGCH_CRT_FB_WIDTH_OFFS, line_l),
+	       priv->mmio + YHGCH_CRT_FB_WIDTH);
 
 	/* SET PIXEL FORMAT */
-	reg = readl(priv->mmio + INSPUR_CRT_DISP_CTL);
-	reg &= ~INSPUR_CRT_DISP_CTL_FORMAT_MASK;
-	reg |= INSPUR_FIELD(INSPUR_CRT_DISP_CTL_FORMAT,
+	reg = readl(priv->mmio + YHGCH_CRT_DISP_CTL);
+	reg &= ~YHGCH_CRT_DISP_CTL_FORMAT_MASK;
+	reg |= YHGCH_FIELD(YHGCH_CRT_DISP_CTL_FORMAT,
 			    state->fb->format->cpp[0] * 8 / 16);
-	writel(reg, priv->mmio + INSPUR_CRT_DISP_CTL);
+	writel(reg, priv->mmio + YHGCH_CRT_DISP_CTL);
 }
 
 static const u32 channel_formats1[] = {
@@ -136,6 +130,7 @@ static struct drm_plane_funcs yhgch_plane_funcs = {
 };
 
 static const struct drm_plane_helper_funcs yhgch_plane_helper_funcs = {
+	DRM_GEM_VRAM_PLANE_HELPER_FUNCS,
 	.atomic_check = yhgch_plane_atomic_check,
 	.atomic_update = yhgch_plane_atomic_update,
 };
@@ -169,13 +164,13 @@ static void yhgch_crtc_dpms(struct drm_crtc *crtc, int dpms)
 	struct yhgch_drm_private *priv = crtc->dev->dev_private;
 	unsigned int reg;
 
-	reg = readl(priv->mmio + INSPUR_CRT_DISP_CTL);
-	reg &= ~INSPUR_CRT_DISP_CTL_DPMS_MASK;
-	reg |= INSPUR_FIELD(INSPUR_CRT_DISP_CTL_DPMS, dpms);
-	reg &= ~INSPUR_CRT_DISP_CTL_TIMING_MASK;
-	if (dpms == INSPUR_CRT_DPMS_ON)
-		reg |= INSPUR_CRT_DISP_CTL_TIMING(1);
-	writel(reg, priv->mmio + INSPUR_CRT_DISP_CTL);
+	reg = readl(priv->mmio + YHGCH_CRT_DISP_CTL);
+	reg &= ~YHGCH_CRT_DISP_CTL_DPMS_MASK;
+	reg |= YHGCH_FIELD(YHGCH_CRT_DISP_CTL_DPMS, dpms);
+	reg &= ~YHGCH_CRT_DISP_CTL_TIMING_MASK;
+	if (dpms == YHGCH_CRT_DPMS_ON)
+		reg |= YHGCH_CRT_DISP_CTL_TIMING(1);
+	writel(reg, priv->mmio + YHGCH_CRT_DISP_CTL);
 }
 
 static void yhgch_crtc_atomic_enable(struct drm_crtc *crtc,
@@ -184,16 +179,16 @@ static void yhgch_crtc_atomic_enable(struct drm_crtc *crtc,
 	unsigned int reg;
 	struct yhgch_drm_private *priv = crtc->dev->dev_private;
 
-	yhgch_set_power_mode(priv, INSPUR_PW_MODE_CTL_MODE_MODE0);
+	yhgch_set_power_mode(priv, YHGCH_PW_MODE_CTL_MODE_MODE0);
 
 	/* Enable display power gate & LOCALMEM power gate */
-	reg = readl(priv->mmio + INSPUR_CURRENT_GATE);
-	reg &= ~INSPUR_CURR_GATE_LOCALMEM_MASK;
-	reg &= ~INSPUR_CURR_GATE_DISPLAY_MASK;
-	reg |= INSPUR_CURR_GATE_LOCALMEM(1);
-	reg |= INSPUR_CURR_GATE_DISPLAY(1);
+	reg = readl(priv->mmio + YHGCH_CURRENT_GATE);
+	reg &= ~YHGCH_CURR_GATE_LOCALMEM_MASK;
+	reg &= ~YHGCH_CURR_GATE_DISPLAY_MASK;
+	reg |= YHGCH_CURR_GATE_LOCALMEM(1);
+	reg |= YHGCH_CURR_GATE_DISPLAY(1);
 	yhgch_set_current_gate(priv, reg);
-	yhgch_crtc_dpms(crtc, INSPUR_CRT_DPMS_ON);
+	yhgch_crtc_dpms(crtc, YHGCH_CRT_DPMS_ON);
 }
 
 static void yhgch_crtc_atomic_disable(struct drm_crtc *crtc,
@@ -202,16 +197,16 @@ static void yhgch_crtc_atomic_disable(struct drm_crtc *crtc,
 	unsigned int reg;
 	struct yhgch_drm_private *priv = crtc->dev->dev_private;
 
-	yhgch_crtc_dpms(crtc, INSPUR_CRT_DPMS_OFF);
+	yhgch_crtc_dpms(crtc, YHGCH_CRT_DPMS_OFF);
 
-	yhgch_set_power_mode(priv, INSPUR_PW_MODE_CTL_MODE_SLEEP);
+	yhgch_set_power_mode(priv, YHGCH_PW_MODE_CTL_MODE_SLEEP);
 
 	/* Enable display power gate & LOCALMEM power gate */
-	reg = readl(priv->mmio + INSPUR_CURRENT_GATE);
-	reg &= ~INSPUR_CURR_GATE_LOCALMEM_MASK;
-	reg &= ~INSPUR_CURR_GATE_DISPLAY_MASK;
-	reg |= INSPUR_CURR_GATE_LOCALMEM(0);
-	reg |= INSPUR_CURR_GATE_DISPLAY(0);
+	reg = readl(priv->mmio + YHGCH_CURRENT_GATE);
+	reg &= ~YHGCH_CURR_GATE_LOCALMEM_MASK;
+	reg &= ~YHGCH_CURR_GATE_DISPLAY_MASK;
+	reg |= YHGCH_CURR_GATE_LOCALMEM(0);
+	reg |= YHGCH_CURR_GATE_DISPLAY(0);
 	yhgch_set_current_gate(priv, reg);
 }
 
@@ -313,13 +308,13 @@ static unsigned int display_ctrl_adjust(struct drm_device *dev,
 	 * Note that normal chip only use those two register for
 	 * auto-centering mode.
 	 */
-	writel(INSPUR_FIELD(INSPUR_CRT_AUTO_CENTERING_TL_TOP, 0) |
-	       INSPUR_FIELD(INSPUR_CRT_AUTO_CENTERING_TL_LEFT, 0),
-	       priv->mmio + INSPUR_CRT_AUTO_CENTERING_TL);
+	writel(YHGCH_FIELD(YHGCH_CRT_AUTO_CENTERING_TL_TOP, 0) |
+	       YHGCH_FIELD(YHGCH_CRT_AUTO_CENTERING_TL_LEFT, 0),
+	       priv->mmio + YHGCH_CRT_AUTO_CENTERING_TL);
 
-	writel(INSPUR_FIELD(INSPUR_CRT_AUTO_CENTERING_BR_BOTTOM, y - 1) |
-	       INSPUR_FIELD(INSPUR_CRT_AUTO_CENTERING_BR_RIGHT, x - 1),
-	       priv->mmio + INSPUR_CRT_AUTO_CENTERING_BR);
+	writel(YHGCH_FIELD(YHGCH_CRT_AUTO_CENTERING_BR_BOTTOM, y - 1) |
+	       YHGCH_FIELD(YHGCH_CRT_AUTO_CENTERING_BR_RIGHT, x - 1),
+	       priv->mmio + YHGCH_CRT_AUTO_CENTERING_BR);
 
 	/*
 	 * Assume common fields in ctrl have been properly set before
@@ -328,17 +323,17 @@ static unsigned int display_ctrl_adjust(struct drm_device *dev,
 	 */
 
 	/* Set bit 25 of display controller: Select CRT or VGA clock */
-	ctrl &= ~INSPUR_CRT_DISP_CTL_CRTSELECT_MASK;
-	ctrl &= ~INSPUR_CRT_DISP_CTL_CLOCK_PHASE_MASK;
+	ctrl &= ~YHGCH_CRT_DISP_CTL_CRTSELECT_MASK;
+	ctrl &= ~YHGCH_CRT_DISP_CTL_CLOCK_PHASE_MASK;
 
-	ctrl |= INSPUR_CRT_DISP_CTL_CRTSELECT(INSPUR_CRTSELECT_CRT);
+	ctrl |= YHGCH_CRT_DISP_CTL_CRTSELECT(YHGCH_CRTSELECT_CRT);
 
 	/* clock_phase_polarity is 0 */
-	ctrl |= INSPUR_CRT_DISP_CTL_CLOCK_PHASE(0);
+	ctrl |= YHGCH_CRT_DISP_CTL_CLOCK_PHASE(0);
 
-	ctrl |= INSPUR_FIELD(INSPUR_CRT_DISP_CTL_FORMAT, 2);
+	ctrl |= YHGCH_FIELD(YHGCH_CRT_DISP_CTL_FORMAT, 2);
 
-	writel(ctrl, priv->mmio + INSPUR_CRT_DISP_CTL);
+	writel(ctrl, priv->mmio + YHGCH_CRT_DISP_CTL);
 
 	return ctrl;
 }
@@ -352,27 +347,27 @@ static void yhgch_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	int width = mode->hsync_end - mode->hsync_start;
 	int height = mode->vsync_end - mode->vsync_start;
 
-	//writel(format_pll_reg(), priv->mmio + INSPUR_CRT_PLL_CTRL);
-	writel(INSPUR_FIELD(INSPUR_CRT_HORZ_TOTAL_TOTAL, mode->htotal - 1) |
-	       INSPUR_FIELD(INSPUR_CRT_HORZ_TOTAL_DISP_END, mode->hdisplay - 1),
-	       priv->mmio + INSPUR_CRT_HORZ_TOTAL);
+	//writel(format_pll_reg(), priv->mmio + YHGCH_CRT_PLL_CTRL);
+	writel(YHGCH_FIELD(YHGCH_CRT_HORZ_TOTAL_TOTAL, mode->htotal - 1) |
+	       YHGCH_FIELD(YHGCH_CRT_HORZ_TOTAL_DISP_END, mode->hdisplay - 1),
+	       priv->mmio + YHGCH_CRT_HORZ_TOTAL);
 
-	writel(INSPUR_FIELD(INSPUR_CRT_HORZ_SYNC_WIDTH, width) |
-	       INSPUR_FIELD(INSPUR_CRT_HORZ_SYNC_START, mode->hsync_start - 1),
-	       priv->mmio + INSPUR_CRT_HORZ_SYNC);
+	writel(YHGCH_FIELD(YHGCH_CRT_HORZ_SYNC_WIDTH, width) |
+	       YHGCH_FIELD(YHGCH_CRT_HORZ_SYNC_START, mode->hsync_start - 1),
+	       priv->mmio + YHGCH_CRT_HORZ_SYNC);
 
-	writel(INSPUR_FIELD(INSPUR_CRT_VERT_TOTAL_TOTAL, mode->vtotal - 1) |
-	       INSPUR_FIELD(INSPUR_CRT_VERT_TOTAL_DISP_END, mode->vdisplay - 1),
-	       priv->mmio + INSPUR_CRT_VERT_TOTAL);
+	writel(YHGCH_FIELD(YHGCH_CRT_VERT_TOTAL_TOTAL, mode->vtotal - 1) |
+	       YHGCH_FIELD(YHGCH_CRT_VERT_TOTAL_DISP_END, mode->vdisplay - 1),
+	       priv->mmio + YHGCH_CRT_VERT_TOTAL);
 
-	writel(INSPUR_FIELD(INSPUR_CRT_VERT_SYNC_HEIGHT, height) |
-	       INSPUR_FIELD(INSPUR_CRT_VERT_SYNC_START, mode->vsync_start - 1),
-	       priv->mmio + INSPUR_CRT_VERT_SYNC);
+	writel(YHGCH_FIELD(YHGCH_CRT_VERT_SYNC_HEIGHT, height) |
+	       YHGCH_FIELD(YHGCH_CRT_VERT_SYNC_START, mode->vsync_start - 1),
+	       priv->mmio + YHGCH_CRT_VERT_SYNC);
 
-	val = INSPUR_FIELD(INSPUR_CRT_DISP_CTL_VSYNC_PHASE, 0);
-	val |= INSPUR_FIELD(INSPUR_CRT_DISP_CTL_HSYNC_PHASE, 0);
-	val |= INSPUR_CRT_DISP_CTL_TIMING(1);
-	val |= INSPUR_CRT_DISP_CTL_PLANE(1);
+	val = YHGCH_FIELD(YHGCH_CRT_DISP_CTL_VSYNC_PHASE, 0);
+	val |= YHGCH_FIELD(YHGCH_CRT_DISP_CTL_HSYNC_PHASE, 0);
+	val |= YHGCH_CRT_DISP_CTL_TIMING(1);
+	val |= YHGCH_CRT_DISP_CTL_PLANE(1);
 
 	display_ctrl_adjust(dev, mode, val);
 }
@@ -384,14 +379,14 @@ static void yhgch_crtc_atomic_begin(struct drm_crtc *crtc,
 	struct drm_device *dev = crtc->dev;
 	struct yhgch_drm_private *priv = dev->dev_private;
 
-	yhgch_set_power_mode(priv, INSPUR_PW_MODE_CTL_MODE_MODE0);
+	yhgch_set_power_mode(priv, YHGCH_PW_MODE_CTL_MODE_MODE0);
 
 	/* Enable display power gate & LOCALMEM power gate */
-	reg = readl(priv->mmio + INSPUR_CURRENT_GATE);
-	reg &= ~INSPUR_CURR_GATE_DISPLAY_MASK;
-	reg &= ~INSPUR_CURR_GATE_LOCALMEM_MASK;
-	reg |= INSPUR_CURR_GATE_DISPLAY(1);
-	reg |= INSPUR_CURR_GATE_LOCALMEM(1);
+	reg = readl(priv->mmio + YHGCH_CURRENT_GATE);
+	reg &= ~YHGCH_CURR_GATE_DISPLAY_MASK;
+	reg &= ~YHGCH_CURR_GATE_LOCALMEM_MASK;
+	reg |= YHGCH_CURR_GATE_DISPLAY(1);
+	reg |= YHGCH_CURR_GATE_LOCALMEM(1);
 	yhgch_set_current_gate(priv, reg);
 
 	/* We can add more initialization as needed. */
@@ -414,8 +409,8 @@ static int yhgch_crtc_enable_vblank(struct drm_crtc *crtc)
 {
 	struct yhgch_drm_private *priv = crtc->dev->dev_private;
 
-	writel(INSPUR_RAW_INTERRUPT_EN_VBLANK(1),
-	       priv->mmio + INSPUR_RAW_INTERRUPT_EN);
+	writel(YHGCH_RAW_INTERRUPT_EN_VBLANK(1),
+	       priv->mmio + YHGCH_RAW_INTERRUPT_EN);
 
 	return 0;
 }
@@ -424,8 +419,8 @@ static void yhgch_crtc_disable_vblank(struct drm_crtc *crtc)
 {
 	struct yhgch_drm_private *priv = crtc->dev->dev_private;
 
-	writel(INSPUR_RAW_INTERRUPT_EN_VBLANK(0),
-	       priv->mmio + INSPUR_RAW_INTERRUPT_EN);
+	writel(YHGCH_RAW_INTERRUPT_EN_VBLANK(0),
+	       priv->mmio + YHGCH_RAW_INTERRUPT_EN);
 }
 
 static const struct drm_crtc_funcs yhgch_crtc_funcs = {

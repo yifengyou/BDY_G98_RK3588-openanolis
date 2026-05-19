@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-#ifndef INSPUR_DRM_DRV_H
-#define INSPUR_DRM_DRV_H
+#ifndef YHGCH_DRM_DRV_H
+#define YHGCH_DRM_DRV_H
 
 #include <linux/version.h>
 #include <drm/drm_atomic.h>
@@ -61,6 +61,9 @@ struct yhgch_drm_private {
 
 	/* hw cursor */
 	struct yhgch_cursor cursor;
+
+	/* Phytium host bridge 1db7:5c01: uncached VRAM / fb mapping */
+	bool is_5c01_device;
 };
 
 #define to_yhgch_framebuffer(x) container_of(x, struct yhgch_framebuffer, fb)
@@ -80,6 +83,8 @@ int yhgch_gem_create(struct drm_device *dev, u32 size, bool iskernel,
 
 int yhgch_dumb_create(struct drm_file *file, struct drm_device *dev,
 		       struct drm_mode_create_dumb *args);
+
+void yhgch_vram_post_init(struct yhgch_drm_private *yhgch);
 
 extern const struct drm_mode_config_funcs yhgch_mode_funcs;
 

@@ -10,11 +10,53 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_probe_helper.h>
+#include <drm/drm_ioctl.h>
 
 #include "yhgch_drm_drv.h"
 #include "yhgch_drm_regs.h"
 
 #define MEM_SIZE_RESERVE4KVM 0x200000
+
+#define DRM_yhgch_VRAM_TYPE_DEVICE 0x0
+#define DRM_IOCTL_yhgch_VRAM_TYPE_DEVICE \
+	DRM_IO(DRM_COMMAND_BASE + DRM_yhgch_VRAM_TYPE_DEVICE)
+
+static int yhgch_ioctl_check_5c01_device(struct drm_device *dev, void *data,
+					 struct drm_file *file_priv)
+{
+	struct yhgch_drm_private *priv = dev->dev_private;
+
+	(void)data;
+	(void)file_priv;
+	return priv->is_5c01_device ? 0 : -ENODEV;
+}
+
+static const struct drm_ioctl_desc yhgch_ioctls[] = {
+	DRM_IOCTL_DEF_DRV(yhgch_VRAM_TYPE_DEVICE, yhgch_ioctl_check_5c01_device,
+			  DRM_AUTH | DRM_UNLOCKED),
+};
+
+static bool yhgch_pci_root_is_5c01(struct pci_dev *pdev)
+{
+	struct pci_bus *bus = pdev->bus;
+	struct pci_dev *bridge;
+
+	if (!bus)
+		return false;
+	while (bus->parent)
+		bus = bus->parent;
+	bridge = bus->self;
+	if (!bridge)
+		return false;
+	return bridge->vendor == 0x1db7 && bridge->device == 0x5c01;
+}
+
+static void yhgch_detect_5c01_host(struct yhgch_drm_private *priv)
+{
+	struct pci_dev *pdev = to_pci_dev(priv->dev->dev);
+
+	priv->is_5c01_device = yhgch_pci_root_is_5c01(pdev);
+}
 
 DEFINE_DRM_GEM_FOPS(yhgch_fops);
 irqreturn_t yhgch_drm_interrupt(int irq, void *arg)
@@ -24,11 +66,11 @@ irqreturn_t yhgch_drm_interrupt(int irq, void *arg)
 	    (struct yhgch_drm_private *)dev->dev_private;
 	u32 status;
 
-	status = readl(priv->mmio + INSPUR_RAW_INTERRUPT);
+	status = readl(priv->mmio + YHGCH_RAW_INTERRUPT);
 
-	if (status & INSPUR_RAW_INTERRUPT_VBLANK(1)) {
-		writel(INSPUR_RAW_INTERRUPT_VBLANK(1),
-		       priv->mmio + INSPUR_RAW_INTERRUPT);
+	if (status & YHGCH_RAW_INTERRUPT_VBLANK(1)) {
+		writel(YHGCH_RAW_INTERRUPT_VBLANK(1),
+		       priv->mmio + YHGCH_RAW_INTERRUPT);
 		drm_handle_vblank(dev, 0);
 	}
 
@@ -39,12 +81,15 @@ static struct drm_driver yhgch_driver = {
 	.driver_features = DRIVER_GEM | DRIVER_MODESET |
 	    DRIVER_ATOMIC | DRIVER_HAVE_IRQ,
 
+	.ioctls = yhgch_ioctls,
+	.num_ioctls = ARRAY_SIZE(yhgch_ioctls),
+
 	.fops = &yhgch_fops,
 	.name = "yhgch",
-	.date = "20250312",
+	.date = "20260407",
 	.desc = "yhgch drm driver",
 	.major = 3,
-	.minor = 3,
+	.minor = 7,
 	.dumb_create = yhgch_dumb_create,
 	.dumb_map_offset = drm_gem_ttm_dumb_map_offset,
 };
@@ -124,18 +169,18 @@ void yhgch_set_power_mode(struct yhgch_drm_private *priv,
 	void __iomem *mmio = priv->mmio;
 	unsigned int input = 1;
 
-	if (power_mode > INSPUR_PW_MODE_CTL_MODE_SLEEP)
+	if (power_mode > YHGCH_PW_MODE_CTL_MODE_SLEEP)
 		return;
 
-	if (power_mode == INSPUR_PW_MODE_CTL_MODE_SLEEP)
+	if (power_mode == YHGCH_PW_MODE_CTL_MODE_SLEEP)
 		input = 0;
 
-	control_value = readl(mmio + INSPUR_POWER_MODE_CTRL);
-	control_value &= ~(INSPUR_PW_MODE_CTL_MODE_MASK |
-			   INSPUR_PW_MODE_CTL_OSC_INPUT_MASK);
-	control_value |= INSPUR_FIELD(INSPUR_PW_MODE_CTL_MODE, power_mode);
-	control_value |= INSPUR_FIELD(INSPUR_PW_MODE_CTL_OSC_INPUT, input);
-	writel(control_value, mmio + INSPUR_POWER_MODE_CTRL);
+	control_value = readl(mmio + YHGCH_POWER_MODE_CTRL);
+	control_value &= ~(YHGCH_PW_MODE_CTL_MODE_MASK |
+			   YHGCH_PW_MODE_CTL_OSC_INPUT_MASK);
+	control_value |= YHGCH_FIELD(YHGCH_PW_MODE_CTL_MODE, power_mode);
+	control_value |= YHGCH_FIELD(YHGCH_PW_MODE_CTL_OSC_INPUT, input);
+	writel(control_value, mmio + YHGCH_POWER_MODE_CTRL);
 }
 
 void yhgch_set_current_gate(struct yhgch_drm_private *priv, unsigned int gate)
@@ -145,20 +190,20 @@ void yhgch_set_current_gate(struct yhgch_drm_private *priv, unsigned int gate)
 	void __iomem *mmio = priv->mmio;
 
 	/* Get current power mode. */
-	mode = (readl(mmio + INSPUR_POWER_MODE_CTRL) &
-		INSPUR_PW_MODE_CTL_MODE_MASK) >> INSPUR_PW_MODE_CTL_MODE_SHIFT;
+	mode = (readl(mmio + YHGCH_POWER_MODE_CTRL) &
+		YHGCH_PW_MODE_CTL_MODE_MASK) >> YHGCH_PW_MODE_CTL_MODE_SHIFT;
 
 	switch (mode) {
-	case INSPUR_PW_MODE_CTL_MODE_MODE0:
-		gate_reg = INSPUR_MODE0_GATE;
+	case YHGCH_PW_MODE_CTL_MODE_MODE0:
+		gate_reg = YHGCH_MODE0_GATE;
 		break;
 
-	case INSPUR_PW_MODE_CTL_MODE_MODE1:
-		gate_reg = INSPUR_MODE1_GATE;
+	case YHGCH_PW_MODE_CTL_MODE_MODE1:
+		gate_reg = YHGCH_MODE1_GATE;
 		break;
 
 	default:
-		gate_reg = INSPUR_MODE0_GATE;
+		gate_reg = YHGCH_MODE0_GATE;
 		break;
 	}
 	writel(gate, mmio + gate_reg);
@@ -169,14 +214,14 @@ static void yhgch_hw_config(struct yhgch_drm_private *priv)
 	unsigned int reg;
 
 	/* On hardware reset, power mode 0 is default. */
-	yhgch_set_power_mode(priv, INSPUR_PW_MODE_CTL_MODE_MODE0);
+	yhgch_set_power_mode(priv, YHGCH_PW_MODE_CTL_MODE_MODE0);
 
 	/* Enable display power gate & LOCALMEM power gate */
-	reg = readl(priv->mmio + INSPUR_CURRENT_GATE);
-	reg &= ~INSPUR_CURR_GATE_DISPLAY_MASK;
-	reg &= ~INSPUR_CURR_GATE_LOCALMEM_MASK;
-	reg |= INSPUR_CURR_GATE_DISPLAY(1);
-	reg |= INSPUR_CURR_GATE_LOCALMEM(1);
+	reg = readl(priv->mmio + YHGCH_CURRENT_GATE);
+	reg &= ~YHGCH_CURR_GATE_DISPLAY_MASK;
+	reg &= ~YHGCH_CURR_GATE_LOCALMEM_MASK;
+	reg |= YHGCH_CURR_GATE_DISPLAY(1);
+	reg |= YHGCH_CURR_GATE_LOCALMEM(1);
 
 	yhgch_set_current_gate(priv, reg);
 
@@ -186,15 +231,15 @@ static void yhgch_hw_config(struct yhgch_drm_private *priv)
 	 * the memory.The memory should be resetted after
 	 * changing the MXCLK.
 	 */
-	reg = readl(priv->mmio + INSPUR_MISC_CTRL);
-	reg &= ~INSPUR_MSCCTL_LOCALMEM_RESET_MASK;
-	reg |= INSPUR_MSCCTL_LOCALMEM_RESET(0);
-	writel(reg, priv->mmio + INSPUR_MISC_CTRL);
+	reg = readl(priv->mmio + YHGCH_MISC_CTRL);
+	reg &= ~YHGCH_MSCCTL_LOCALMEM_RESET_MASK;
+	reg |= YHGCH_MSCCTL_LOCALMEM_RESET(0);
+	writel(reg, priv->mmio + YHGCH_MISC_CTRL);
 
-	reg &= ~INSPUR_MSCCTL_LOCALMEM_RESET_MASK;
-	reg |= INSPUR_MSCCTL_LOCALMEM_RESET(1);
+	reg &= ~YHGCH_MSCCTL_LOCALMEM_RESET_MASK;
+	reg |= YHGCH_MSCCTL_LOCALMEM_RESET(1);
 
-	writel(reg, priv->mmio + INSPUR_MISC_CTRL);
+	writel(reg, priv->mmio + YHGCH_MISC_CTRL);
 }
 
 static int yhgch_hw_map(struct yhgch_drm_private *priv)
@@ -213,7 +258,10 @@ static int yhgch_hw_map(struct yhgch_drm_private *priv)
 
 	addr = pci_resource_start(pdev, 0);
 	size = pci_resource_len(pdev, 0);
-	priv->fb_map = devm_ioremap(dev->dev, addr, size);
+	if (priv->is_5c01_device)
+		priv->fb_map = devm_ioremap_uc(dev->dev, addr, size);
+	else
+		priv->fb_map = devm_ioremap_wc(dev->dev, addr, size);
 	if (!priv->fb_map) {
 		DRM_ERROR("Cannot map framebuffer\n");
 		return -ENOMEM;
@@ -240,7 +288,6 @@ static int yhgch_hw_init(struct yhgch_drm_private *priv)
 void yhgch_unload(struct drm_device *dev)
 {
 
-
 	drm_atomic_helper_shutdown(dev);
 
 }
@@ -258,6 +305,7 @@ int yhgch_load(struct drm_device *dev, unsigned long flags)
 	}
 	dev->dev_private = priv;
 	priv->dev = dev;
+	yhgch_detect_5c01_host(priv);
 
 	ret = yhgch_hw_init(priv);
 	if (ret)
@@ -270,6 +318,7 @@ int yhgch_load(struct drm_device *dev, unsigned long flags)
 		drm_err(dev, "Error initializing VRAM MM; %d\n", ret);
 		goto err;
 	}
+	//yhgch_vram_post_init(priv);
 	ret = yhgch_kms_init(priv);
 	if (ret)
 		goto err;
@@ -336,7 +385,7 @@ static void yhgch_pci_remove(struct pci_dev *pdev)
 
 static void yhgch_pci_shutdown(struct pci_dev *pdev)
 {
-	yhgch_pci_remove(pdev);
+	drm_atomic_helper_shutdown(pci_get_drvdata(pdev));
 }
 
 static struct pci_device_id yhgch_pci_table[] = {
@@ -355,7 +404,11 @@ static struct pci_driver yhgch_pci_driver = {
 
 static int __init yhgch_init(void)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)
 	if (drm_firmware_drivers_only())
+#else
+	if (vgacon_text_force())
+#endif
 		return -ENODEV;
 	return pci_register_driver(&yhgch_pci_driver);
 }
@@ -371,5 +424,5 @@ module_exit(yhgch_exit);
 MODULE_DEVICE_TABLE(pci, yhgch_pci_table);
 MODULE_AUTHOR("");
 MODULE_DESCRIPTION("DRM Driver for YhgchBMC");
-MODULE_LICENSE("GPL");
-MODULE_VERSION("3.3");
+MODULE_LICENSE("GPL v2");
+MODULE_VERSION("3.7");

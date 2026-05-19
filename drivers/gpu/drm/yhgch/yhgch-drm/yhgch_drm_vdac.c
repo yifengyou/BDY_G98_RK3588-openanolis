@@ -45,12 +45,12 @@ static void yhgch_encoder_mode_set(struct drm_encoder *encoder,
 	struct drm_device *dev = encoder->dev;
 	struct yhgch_drm_private *priv = dev->dev_private;
 
-	reg = readl(priv->mmio + INSPUR_DISPLAY_CONTROL_HISILE);
-	reg |= INSPUR_DISPLAY_CONTROL_FPVDDEN(1);
-	reg |= INSPUR_DISPLAY_CONTROL_PANELDATE(1);
-	reg |= INSPUR_DISPLAY_CONTROL_FPEN(1);
-	reg |= INSPUR_DISPLAY_CONTROL_VBIASEN(1);
-	writel(reg, priv->mmio + INSPUR_DISPLAY_CONTROL_HISILE);
+	reg = readl(priv->mmio + YHGCH_DISPLAY_CONTROL_HISILE);
+	reg |= YHGCH_DISPLAY_CONTROL_FPVDDEN(1);
+	reg |= YHGCH_DISPLAY_CONTROL_PANELDATE(1);
+	reg |= YHGCH_DISPLAY_CONTROL_FPEN(1);
+	reg |= YHGCH_DISPLAY_CONTROL_VBIASEN(1);
+	writel(reg, priv->mmio + YHGCH_DISPLAY_CONTROL_HISILE);
 }
 
 static const struct drm_encoder_helper_funcs yhgch_encoder_helper_funcs = {
