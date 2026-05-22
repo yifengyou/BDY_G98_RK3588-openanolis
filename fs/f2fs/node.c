@@ -1483,6 +1483,10 @@ int f2fs_sanity_check_node_footer(struct f2fs_sb_info *sbi,
 		if (IS_INODE(page))
 			goto out_err;
 		break;
+	case NODE_TYPE_NON_IXNODE:
+		if (IS_INODE(page) || f2fs_has_xattr_block(ofs_of_node(page)))
+			goto out_err;
+		break;
 	default:
 		break;
 	}
@@ -1502,7 +1506,8 @@ out_err:
 }
 
 static struct page *__get_node_page(struct f2fs_sb_info *sbi, pgoff_t nid,
-					struct page *parent, int start)
+					struct page *parent, int start,
+					enum node_type ntype)
 {
 	struct page *page;
 	int err;
@@ -1544,7 +1549,7 @@ repeat:
 		goto out_err;
 	}
 page_hit:
-	err = f2fs_sanity_check_node_footer(sbi, page, nid, NODE_TYPE_REGULAR, false);
+	err = f2fs_sanity_check_node_footer(sbi, page, nid, ntype, false);
 	if (!err)
 		return page;
 out_err:
@@ -1559,7 +1564,7 @@ out_put_err:
 
 struct page *f2fs_get_node_page(struct f2fs_sb_info *sbi, pgoff_t nid)
 {
-	return __get_node_page(sbi, nid, NULL, 0);
+	return __get_node_page(sbi, nid, NULL, 0, NODE_TYPE_REGULAR);
 }
 
 struct page *f2fs_get_node_page_ra(struct page *parent, int start)
@@ -1567,7 +1572,7 @@ struct page *f2fs_get_node_page_ra(struct page *parent, int start)
 	struct f2fs_sb_info *sbi = F2FS_P_SB(parent);
 	nid_t nid = get_nid(parent, start, false);
 
-	return __get_node_page(sbi, nid, parent, start);
+	return __get_node_page(sbi, nid, parent, start, NODE_TYPE_NON_IXNODE);
 }
 
 static void flush_inline_data(struct f2fs_sb_info *sbi, nid_t ino)
