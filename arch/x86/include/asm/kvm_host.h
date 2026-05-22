@@ -928,6 +928,11 @@ struct kvm_vcpu_arch {
 		struct gfn_to_hva_cache cache;
 	} st;
 
+	struct {
+		u64 msr_val;
+		struct gfn_to_hva_cache cache;
+	} pv_idle_time;
+
 	u64 l1_tsc_offset;
 	u64 tsc_offset; /* current tsc offset */
 	u64 last_guest_tsc;
@@ -2310,6 +2315,8 @@ extern bool kvm_find_async_pf_gfn(struct kvm_vcpu *vcpu, gfn_t gfn);
 
 int kvm_skip_emulated_instruction(struct kvm_vcpu *vcpu);
 int kvm_complete_insn_gp(struct kvm_vcpu *vcpu, int err);
+
+bool kvm_arch_is_vcpu_pv_idle(struct kvm_vcpu *vcpu);
 
 void __user *__x86_set_memory_region(struct kvm *kvm, int id, gpa_t gpa,
 				     u32 size);

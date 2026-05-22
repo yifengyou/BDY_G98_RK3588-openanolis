@@ -71,6 +71,16 @@ static DEFINE_PER_CPU_DECRYPTED(struct kvm_vcpu_pv_apf_data, apf_reason) __align
 DEFINE_PER_CPU_DECRYPTED(struct kvm_steal_time, steal_time) __aligned(64) __visible;
 static int has_steal_clock = 0;
 
+static DEFINE_PER_CPU_DECRYPTED(struct kvm_idle_time, pv_idle_time) __aligned(64);
+static int has_pv_idle_time;
+
+struct kvm_idle {
+	ktime_t idle_start;
+};
+static DEFINE_PER_CPU(struct kvm_idle, kvm_idle);
+
+DEFINE_STATIC_KEY_FALSE(kvm_pv_idle_time_enabled);
+
 static int has_guest_poll = 0;
 /*
  * No need for any "IO delay" on KVM
@@ -332,6 +342,53 @@ static void kvm_register_steal_time(void)
 		(unsigned long long) slow_virt_to_phys(st));
 }
 
+static void kvm_register_pv_idle_time(void)
+{
+	int cpu = smp_processor_id();
+	struct kvm_idle_time *vi = &per_cpu(pv_idle_time, cpu);
+
+	if (!has_pv_idle_time)
+		return;
+
+	WRITE_ONCE(vi->flag, KVM_PV_VCPU_RUNNING);
+	WRITE_ONCE(vi->idle_accum, 0);
+	wrmsrl(MSR_KVM_PV_IDLE_TIME,
+	       (slow_virt_to_phys(vi) | KVM_MSR_ENABLED));
+	pr_debug("pv_idle_time: cpu %d, msr %llx\n", cpu,
+		 (unsigned long long) slow_virt_to_phys(vi));
+}
+
+static void kvm_disable_pv_idle_time(void)
+{
+	if (!has_pv_idle_time)
+		return;
+
+	wrmsrl(MSR_KVM_PV_IDLE_TIME, 0);
+}
+
+void kvm_pv_vcpu_idle_enter(void)
+{
+	struct kvm_idle_time *vi = this_cpu_ptr(&pv_idle_time);
+	struct kvm_idle *idle = this_cpu_ptr(&kvm_idle);
+
+	WRITE_ONCE(vi->flag, KVM_PV_VCPU_IDLE);
+
+	idle->idle_start = ktime_get();
+}
+
+void kvm_pv_vcpu_idle_exit(void)
+{
+	struct kvm_idle_time *vi = this_cpu_ptr(&pv_idle_time);
+	struct kvm_idle *idle = this_cpu_ptr(&kvm_idle);
+	s64 idle_time, idle_accum;
+
+	WRITE_ONCE(vi->flag, KVM_PV_VCPU_RUNNING);
+
+	idle_time = ktime_to_ns(ktime_sub(ktime_get(), idle->idle_start));
+	idle_accum = vi->idle_accum + idle_time;
+	WRITE_ONCE(vi->idle_accum, idle_accum);
+}
+
 static DEFINE_PER_CPU_DECRYPTED(unsigned long, kvm_apic_eoi) = KVM_PV_EOI_DISABLED;
 
 static notrace __maybe_unused void kvm_guest_apic_eoi_write(void)
@@ -381,6 +438,9 @@ static void kvm_guest_cpu_init(void)
 
 	if (has_steal_clock)
 		kvm_register_steal_time();
+
+	if (has_pv_idle_time)
+		kvm_register_pv_idle_time();
 }
 
 static void kvm_pv_disable_apf(void)
@@ -443,12 +503,14 @@ static void __init sev_map_percpu_data(void)
 		__set_percpu_decrypted(&per_cpu(apf_reason, cpu), sizeof(apf_reason));
 		__set_percpu_decrypted(&per_cpu(steal_time, cpu), sizeof(steal_time));
 		__set_percpu_decrypted(&per_cpu(kvm_apic_eoi, cpu), sizeof(kvm_apic_eoi));
+		__set_percpu_decrypted(&per_cpu(pv_idle_time, cpu), sizeof(pv_idle_time));
 	}
 }
 
 static void kvm_guest_cpu_offline(bool shutdown)
 {
 	kvm_disable_steal_time();
+	kvm_disable_pv_idle_time();
 	if (kvm_para_has_feature(KVM_FEATURE_PV_EOI))
 		wrmsrl(MSR_KVM_PV_EOI_EN, 0);
 	if (kvm_para_has_feature(KVM_FEATURE_MIGRATION_CONTROL))
@@ -824,6 +886,12 @@ static void __init kvm_guest_init(void)
 
 		pv_ops.lock.vcpu_is_preempted =
 			PV_CALLEE_SAVE(__kvm_vcpu_is_preempted);
+	}
+
+	if (kvm_para_has_feature(KVM_FEATURE_PV_IDLE_TIME)) {
+		has_pv_idle_time = 1;
+		static_branch_enable(&kvm_pv_idle_time_enabled);
+		pr_info("enable pv idle time\n");
 	}
 
 	if (kvm_para_has_feature(KVM_FEATURE_PV_EOI))

@@ -36,6 +36,7 @@
 #define KVM_FEATURE_MSI_EXT_DEST_ID	15
 #define KVM_FEATURE_HC_MAP_GPA_RANGE	16
 #define KVM_FEATURE_MIGRATION_CONTROL	17
+#define KVM_FEATURE_PV_IDLE_TIME	30
 
 #define KVM_HINTS_REALTIME      0
 
@@ -58,6 +59,26 @@
 #define MSR_KVM_ASYNC_PF_INT	0x4b564d06
 #define MSR_KVM_ASYNC_PF_ACK	0x4b564d07
 #define MSR_KVM_MIGRATION_CONTROL	0x4b564d08
+#define MSR_KVM_PV_IDLE_TIME		0x4b564dff
+
+/*
+ * When the guest enters its idle loop it sets ``flag`` to KVM_PV_VCPU_IDLE
+ * and clears it back to KVM_PV_VCPU_RUNNING on exit.  The host can read
+ * ``flag`` at any time to cheaply decide whether the vCPU is currently idle.
+ */
+struct kvm_idle_time {
+	__u64 flag;
+	__u64 idle_accum;
+	__u32 pad[12];
+};
+
+#define KVM_PV_VCPU_RUNNING	0
+#define KVM_PV_VCPU_IDLE	(1U << 0)
+
+#define KVM_PV_IDLE_TIME_ALIGNMENT_BITS	5
+#define KVM_PV_IDLE_TIME_VALID_BITS	((-1ULL << (KVM_PV_IDLE_TIME_ALIGNMENT_BITS + 1)))
+#define KVM_PV_IDLE_TIME_RESERVED_MASK	\
+	(((1 << KVM_PV_IDLE_TIME_ALIGNMENT_BITS) - 1) << 1)
 
 struct kvm_steal_time {
 	__u64 steal;

@@ -50,6 +50,7 @@
 #include <asm/frame.h>
 #include <asm/unwind.h>
 #include <asm/tdx.h>
+#include <asm/kvm_para.h>
 #include <asm/mmu_context.h>
 #include <asm/shstk.h>
 
@@ -782,6 +783,12 @@ void arch_cpu_idle_enter(void)
 {
 	tsc_verify_tsc_adjust(false);
 	local_touch_nmi();
+	kvm_idle_enter();
+}
+
+void arch_cpu_idle_exit(void)
+{
+	kvm_idle_exit();
 }
 
 void __noreturn arch_cpu_idle_dead(void)

@@ -1546,6 +1546,7 @@ static const u32 emulated_msrs_all[] = {
 
 	MSR_KVM_ASYNC_PF_EN, MSR_KVM_STEAL_TIME,
 	MSR_KVM_PV_EOI_EN, MSR_KVM_ASYNC_PF_INT, MSR_KVM_ASYNC_PF_ACK,
+	MSR_KVM_PV_IDLE_TIME,
 
 	MSR_IA32_TSC_ADJUST,
 	MSR_IA32_TSC_DEADLINE,
@@ -3638,6 +3639,31 @@ static bool kvm_is_msr_to_save(u32 msr_index)
 	return false;
 }
 
+static int kvm_set_msr_pv_idle_time(struct kvm_vcpu *vcpu, u64 data)
+{
+	int ret;
+	struct gfn_to_hva_cache *ghc = &vcpu->arch.pv_idle_time.cache;
+	gpa_t gpa = data & KVM_PV_IDLE_TIME_VALID_BITS;
+
+	if (data & KVM_PV_IDLE_TIME_RESERVED_MASK)
+		return 1;
+
+	if (data & KVM_MSR_ENABLED) {
+		/* We rely on the fact that it fits in a single page. */
+		BUILD_BUG_ON((sizeof(struct kvm_idle_time) - 1) &
+			     KVM_PV_IDLE_TIME_VALID_BITS);
+
+		ret = kvm_gfn_to_hva_cache_init(vcpu->kvm, ghc, gpa,
+						sizeof(struct kvm_idle_time));
+		if (ret)
+			return ret;
+	}
+
+	vcpu->arch.pv_idle_time.msr_val = data;
+
+	return 0;
+}
+
 int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 {
 	u32 msr = msr_info->index;
@@ -3901,6 +3927,15 @@ int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 
 		vcpu->arch.msr_kvm_poll_control = data;
 		break;
+
+	case MSR_KVM_PV_IDLE_TIME: {
+		if (!guest_pv_has(vcpu, KVM_FEATURE_PV_IDLE_TIME))
+			return KVM_MSR_RET_UNSUPPORTED;
+
+		if (kvm_set_msr_pv_idle_time(vcpu, data))
+			return 1;
+		break;
+	}
 
 	case MSR_IA32_MCG_CTL:
 	case MSR_IA32_MCG_STATUS:
@@ -4259,6 +4294,12 @@ int kvm_get_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 			return KVM_MSR_RET_UNSUPPORTED;
 
 		msr_info->data = vcpu->arch.msr_kvm_poll_control;
+		break;
+	case MSR_KVM_PV_IDLE_TIME:
+		if (!guest_pv_has(vcpu, KVM_FEATURE_PV_IDLE_TIME))
+			return KVM_MSR_RET_UNSUPPORTED;
+
+		msr_info->data = vcpu->arch.pv_idle_time.msr_val;
 		break;
 	case MSR_IA32_P5_MC_ADDR:
 	case MSR_IA32_P5_MC_TYPE:
@@ -12440,6 +12481,7 @@ void kvm_vcpu_reset(struct kvm_vcpu *vcpu, bool init_event)
 	vcpu->arch.apf.msr_en_val = 0;
 	vcpu->arch.apf.msr_int_val = 0;
 	vcpu->arch.st.msr_val = 0;
+	vcpu->arch.pv_idle_time.msr_val = 0;
 
 	kvmclock_reset(vcpu);
 
@@ -13267,6 +13309,31 @@ static inline bool kvm_vcpu_has_events(struct kvm_vcpu *vcpu)
 int kvm_arch_vcpu_runnable(struct kvm_vcpu *vcpu)
 {
 	return kvm_vcpu_running(vcpu) || kvm_vcpu_has_events(vcpu);
+}
+
+static bool kvm_arch_pv_idle_time_enabled(struct kvm_vcpu *vcpu)
+{
+	return (vcpu->arch.pv_idle_time.msr_val & KVM_MSR_ENABLED);
+}
+
+bool kvm_arch_is_vcpu_pv_idle(struct kvm_vcpu *vcpu)
+{
+	struct gfn_to_hva_cache *ghc = &vcpu->arch.pv_idle_time.cache;
+	__u64 flag;
+	int ret, idx;
+
+	if (!kvm_arch_pv_idle_time_enabled(vcpu))
+		return false;
+
+	idx = srcu_read_lock(&vcpu->kvm->srcu);
+	ret = kvm_read_guest_offset_cached(vcpu->kvm, ghc, &flag,
+					   offsetof(struct kvm_idle_time, flag),
+					   sizeof(flag));
+	srcu_read_unlock(&vcpu->kvm->srcu, idx);
+	if (ret)
+		return false;
+
+	return !!(flag & KVM_PV_VCPU_IDLE);
 }
 
 bool kvm_arch_dy_has_pending_interrupt(struct kvm_vcpu *vcpu)

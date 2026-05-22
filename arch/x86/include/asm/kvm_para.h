@@ -138,6 +138,22 @@ static __always_inline bool kvm_handle_async_pf(struct pt_regs *regs, u32 token)
 		return false;
 }
 
+DECLARE_STATIC_KEY_FALSE(kvm_pv_idle_time_enabled);
+void kvm_pv_vcpu_idle_enter(void);
+void kvm_pv_vcpu_idle_exit(void);
+
+static __always_inline void kvm_idle_enter(void)
+{
+	if (static_branch_unlikely(&kvm_pv_idle_time_enabled))
+		kvm_pv_vcpu_idle_enter();
+}
+
+static __always_inline void kvm_idle_exit(void)
+{
+	if (static_branch_unlikely(&kvm_pv_idle_time_enabled))
+		kvm_pv_vcpu_idle_exit();
+}
+
 #ifdef CONFIG_PARAVIRT_SPINLOCKS
 void __init kvm_spinlock_init(void);
 #else /* !CONFIG_PARAVIRT_SPINLOCKS */
@@ -174,6 +190,9 @@ static __always_inline bool kvm_handle_async_pf(struct pt_regs *regs, u32 token)
 {
 	return false;
 }
+
+static __always_inline void kvm_idle_enter(void) { }
+static __always_inline void kvm_idle_exit(void) { }
 #endif
 
 #endif /* _ASM_X86_KVM_PARA_H */
