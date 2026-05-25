@@ -17,10 +17,48 @@ enum vmx_feature_leafs {
 	SECONDARY_CTLS,
 	TERTIARY_CTLS_LOW,
 	TERTIARY_CTLS_HIGH,
+	ZX_TERTIARY_CTLS,
 	NR_VMX_FEATURE_WORDS,
 };
 
 #define VMX_F(x) BIT(VMX_FEATURE_##x & 0x1f)
+
+static void init_zx_vmx_capabilities(struct cpuinfo_x86 *c)
+{
+	unsigned int vendor = c->x86_vendor;
+	u32 cap_lo, cap_hi;
+	u32 ign, msr_high;
+	int ret;
+
+	if (vendor != X86_VENDOR_ZHAOXIN && vendor != X86_VENDOR_CENTAUR)
+		return;
+
+	if (rdmsr_safe(MSR_ZX_EXT_VMCS_CAPS, &cap_lo, &cap_hi))
+		return;
+
+	if (!(cap_lo & MSR_ZX_VMCS_EXEC_CTL3_EN))
+		return;
+
+	ret = rdmsr_safe(MSR_ZX_VMX_PROCBASED_CTLS3, &ign, &msr_high);
+	if (ret) {
+		/* Case 1: CTLS3 absent, pauseopt is always exposed. */
+		c->vmx_capability[ZX_TERTIARY_CTLS] |= VMX_F(GUEST_PAUSEOPT);
+		return;
+	}
+
+	if (msr_high & BIT(0)) {
+		/* Case 2: CTLS3 present and pauseopt is enumerated via MSR. */
+		c->vmx_capability[ZX_TERTIARY_CTLS] |= VMX_F(GUEST_PAUSEOPT);
+		return;
+	}
+
+	/*
+	 * Case 3: CTLS3 present but the pauseopt bit is clear. Some ZX CPUs
+	 * return 0 instead of causing a #GP when RDMSR reads an invalid MSR,
+	 * so assume pauseopt is still supported.
+	 */
+	c->vmx_capability[ZX_TERTIARY_CTLS] |= VMX_F(GUEST_PAUSEOPT);
+}
 
 static void init_vmx_capabilities(struct cpuinfo_x86 *c)
 {
@@ -97,6 +135,7 @@ static void init_vmx_capabilities(struct cpuinfo_x86 *c)
 		set_cpu_cap(c, X86_FEATURE_EPT_AD);
 	if (c->vmx_capability[MISC_FEATURES] & VMX_F(VPID))
 		set_cpu_cap(c, X86_FEATURE_VPID);
+	init_zx_vmx_capabilities(c);
 }
 #endif /* CONFIG_X86_VMX_FEATURE_NAMES */
 
