@@ -13,7 +13,7 @@
 /*
  * Defines x86 CPU feature bits
  */
-#define NCAPINTS			23	   /* N 32-bit words worth of info */
+#define NCAPINTS			24	   /* N 32-bit words worth of info */
 #define NBUGINTS			2	   /* N 32-bit bug flags */
 
 /*
@@ -531,6 +531,9 @@
 #define X86_FEATURE_IBPB_EXIT_TO_USER  (21*32+14) /* Use IBPB on exit-to-userspace, see VMSCAPE bug */
 
 #define X86_FEATURE_SDCIAE		(21*32+18) /* L3 Smart Data Cache Injection Allocation Enforcement */
+
+/* Zhaoxin/Centaur-defined CPU features, CPUID level 0xC0000006, word 23 */
+#define X86_FEATURE_PAUSEOPT		(23*32 + 0) /* ZHAOXIN PAUSEOPT */
 
 /*
  * BUG word(s)

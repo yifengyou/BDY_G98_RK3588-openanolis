@@ -24226,6 +24226,11 @@ F:	drivers/pinctrl/zhaoxin/pinctrl-kx7000.c
 F:	drivers/pinctrl/zhaoxin/pinctrl-zhaoxin.c
 F:	drivers/pinctrl/zhaoxin/pinctrl-zhaoxin.h
 
+ZHAOXIN PAUSEOPT INSTRUCTION SUPPORT
+M:	LeoLiu-oc <LeoLiu-oc@zhaoxin.com>
+S:	Maintained
+F:	arch/x86/kernel/cpu/pauseopt.c
+
 ZONEFS FILESYSTEM
 M:	Damien Le Moal <dlemoal@kernel.org>
 M:	Naohiro Aota <naohiro.aota@wdc.com>
