@@ -9,6 +9,7 @@
 #include <asm/kvm_types.h>
 
 #ifdef KVM_SUB_MODULES
+#undef EXPORT_SYMBOL_FOR_KVM
 #define EXPORT_SYMBOL_FOR_KVM_INTERNAL(symbol) \
 	EXPORT_SYMBOL_FOR_MODULES(symbol, __stringify(KVM_SUB_MODULES))
 #undef EXPORT_SYMBOL_FOR_KVM

@@ -4,6 +4,7 @@
  */
 
 #include <linux/linkage.h>
+#include <linux/kvm_types.h>
 #include <asm/export.h>
 #include <asm/msr-index.h>
 #include <asm/unwind_hints.h>
@@ -43,8 +44,7 @@ SYM_CODE_START_NOALIGN(x86_verw_sel)
 	.word __KERNEL_DS
 .align L1_CACHE_BYTES, 0xcc
 SYM_CODE_END(x86_verw_sel);
-/* For KVM */
-EXPORT_SYMBOL_GPL(x86_verw_sel);
+EXPORT_SYMBOL_FOR_KVM(x86_verw_sel);
 
 .popsection
 
