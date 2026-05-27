@@ -7226,11 +7226,6 @@ static struct mem_cgroup *mem_cgroup_alloc(struct mem_cgroup *parent)
 		memcg->cgwb_frn[i].done =
 			__WB_COMPLETION_INIT(&memcg_cgwb_frn_waitq);
 #endif
-#ifdef CONFIG_TRANSPARENT_HUGEPAGE
-	spin_lock_init(&memcg->deferred_split_queue.split_queue_lock);
-	INIT_LIST_HEAD(&memcg->deferred_split_queue.split_queue);
-	memcg->deferred_split_queue.split_queue_len = 0;
-#endif
 #ifdef CONFIG_DUPTEXT
 	memcg->duptext_nodes = node_states[N_MEMORY];
 #endif
@@ -7398,7 +7393,6 @@ static void mem_cgroup_css_offline(struct cgroup_subsys_state *css)
 	page_counter_set_wmark_high(&memcg->memory, PAGE_COUNTER_MAX);
 
 	memcg_offline_kmem(memcg);
-	reparent_deferred_split_queue(memcg);
 	reparent_shrinker_deferred(memcg);
 	wb_memcg_offline(memcg);
 	lru_gen_offline_memcg(memcg);

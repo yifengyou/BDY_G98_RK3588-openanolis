@@ -427,10 +427,6 @@ struct mem_cgroup {
 	struct list_head event_list;
 	spinlock_t event_list_lock;
 
-#ifdef CONFIG_TRANSPARENT_HUGEPAGE
-	struct deferred_split deferred_split_queue;
-#endif
-
 #ifdef CONFIG_MEMSLI
 	struct mem_cgroup_lat_stat_cpu __percpu *lat_stat_cpu;
 	struct list_head lat_stat_notify[MEM_LAT_NR_STAT];

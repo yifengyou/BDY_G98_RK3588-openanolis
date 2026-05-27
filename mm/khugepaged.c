@@ -1270,6 +1270,11 @@ static enum scan_result collapse_huge_page(struct mm_struct *mm, unsigned long s
 	if (result != SCAN_SUCCEED)
 		goto out_nolock;
 
+	if (folio_memcg_alloc_deferred(folio)) {
+		result = SCAN_ALLOC_HUGE_PAGE_FAIL;
+		goto out_nolock;
+	}
+
 	/*
 	 * Typically async fork is protected by holding mmap lock, hence
 	 * there's a special case when fork(2) syscall happens in collapsing

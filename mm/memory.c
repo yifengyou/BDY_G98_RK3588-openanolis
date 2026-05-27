@@ -4558,11 +4558,19 @@ static struct folio *alloc_swap_folio(struct vm_fault *vmf)
 		addr = ALIGN_DOWN(vmf->address, PAGE_SIZE << order);
 		folio = vma_alloc_folio(gfp, order, vma, addr, true);
 		if (folio) {
-			if (!mem_cgroup_swapin_charge_folio(folio, vma->vm_mm,
-							    gfp, entry))
-				return folio;
-			folio_put(folio);
+			if (mem_cgroup_swapin_charge_folio(folio, vma->vm_mm,
+							    gfp, entry)) {
+				folio_put(folio);
+				goto next;
+			}
+
+			if (order > 1 && folio_memcg_alloc_deferred(folio)) {
+				folio_put(folio);
+				goto fallback;
+			}
+			return folio;
 		}
+next:
 		order = next_order(&orders, order);
 	}
 
@@ -5093,6 +5101,10 @@ static struct folio *alloc_anon_folio(struct vm_fault *vmf)
 			count_mthp_stat(order, MTHP_STAT_ANON_FAULT_FALLBACK_CHARGE);
 			folio_put(folio);
 			goto next;
+		}
+		if (order > 1 && folio_memcg_alloc_deferred(folio)) {
+			folio_put(folio);
+			goto fallback;
 		}
 		folio_throttle_swaprate(folio, gfp);
 		clear_huge_page(&folio->page, vmf->address, 1 << order);
