@@ -25,6 +25,7 @@
 #include <asm/cputype.h>
 #include <asm/topology.h>
 #include <asm/arch_timer.h>
+#include <asm/paravirt.h>
 
 static unsigned int cpufreq_khz;
 
@@ -279,6 +280,8 @@ static __always_inline bool amu_fie_cpu_supported(unsigned int cpu)
 void arch_cpu_idle_enter(void)
 {
 	unsigned int cpu = smp_processor_id();
+
+	pv_idle_time_enter();
 
 	if (!amu_fie_cpu_supported(cpu))
 		return;

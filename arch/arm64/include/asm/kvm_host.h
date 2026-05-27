@@ -847,6 +847,12 @@ struct kvm_vcpu_arch {
 	} pvsched;
 #endif
 
+	/* Guest PV idle time state */
+	struct {
+		u64 base;
+		struct gfn_to_hva_cache cache;
+	} pv_idle_time;
+
 	/* Per-vcpu CCSIDR override or NULL */
 	u32 *ccsidr;
 
@@ -1376,6 +1382,14 @@ static inline bool kvm_arm_is_pvsched_enabled(struct kvm_vcpu_arch *vcpu_arch)
 	return false;
 }
 #endif
+
+static inline void kvm_arm_pv_idle_time_vcpu_init(struct kvm_vcpu_arch *vcpu_arch)
+{
+	vcpu_arch->pv_idle_time.base = 0;
+}
+
+long kvm_smccc_register_pv_idle_time(struct kvm_vcpu *vcpu);
+bool kvm_arch_is_vcpu_pv_idle(struct kvm_vcpu *vcpu);
 
 struct kvm_vcpu *kvm_mpidr_to_vcpu(struct kvm *kvm, unsigned long mpidr);
 

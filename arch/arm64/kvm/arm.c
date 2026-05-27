@@ -506,6 +506,8 @@ int kvm_arch_vcpu_create(struct kvm_vcpu *vcpu)
 
 	kvm_arm_pvsched_vcpu_init(&vcpu->arch);
 
+	kvm_arm_pv_idle_time_vcpu_init(&vcpu->arch);
+
 	vcpu->arch.hw_mmu = &vcpu->kvm->arch.mmu;
 
 	/*
@@ -1650,6 +1652,8 @@ static int kvm_arch_vcpu_ioctl_vcpu_init(struct kvm_vcpu *vcpu,
 	spin_unlock(&vcpu->arch.mp_state_lock);
 
 	kvm_arm_pvsched_vcpu_init(&vcpu->arch);
+
+	kvm_arm_pv_idle_time_vcpu_init(&vcpu->arch);
 
 	return 0;
 }

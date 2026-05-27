@@ -131,6 +131,9 @@ static bool kvm_smccc_test_fw_bmap(struct kvm_vcpu *vcpu, u32 func_id)
 	case ARM_SMCCC_HV_PV_CPU_FREQ_GET:
 		return test_bit(KVM_REG_ARM_VENDOR_HYP_BIT_PV_CPU_FREQ,
 				&smccc_feat->vendor_hyp_bmap);
+	case ARM_SMCCC_HV_REGISTER_PV_IDLE_TIME:
+		return test_bit(KVM_REG_ARM_VENDOR_HYP_BIT_PV_IDLE_TIME,
+				&smccc_feat->vendor_hyp_bmap);
 #ifdef CONFIG_ARM64_HISI_IPIV
 	case ARM_SMCCC_VENDOR_PV_SGI_FEATURES:
 	case ARM_SMCCC_VENDOR_PV_SGI_ENABLE:
@@ -378,6 +381,11 @@ int kvm_smccc_call_handler(struct kvm_vcpu *vcpu)
 				     &smccc_feat->vendor_hyp_bmap))
 				val[0] = SMCCC_RET_SUCCESS;
 			break;
+		case ARM_SMCCC_HV_PV_IDLE_TIME_FEATURES:
+			if (test_bit(KVM_REG_ARM_VENDOR_HYP_BIT_PV_IDLE_TIME,
+				     &smccc_feat->vendor_hyp_bmap))
+				val[0] = SMCCC_RET_SUCCESS;
+			break;
 		}
 		break;
 	case ARM_SMCCC_HV_PV_TIME_FEATURES:
@@ -431,6 +439,10 @@ int kvm_smccc_call_handler(struct kvm_vcpu *vcpu)
 	case ARM_SMCCC_HV_PV_CPU_FREQ_GET:
 		val[0] = kvm_pv_cpu_freq_get(vcpu);
 		break;
+	case ARM_SMCCC_HV_REGISTER_PV_IDLE_TIME: {
+		val[0] = kvm_smccc_register_pv_idle_time(vcpu);
+		break;
+	}
 	case ARM_SMCCC_TRNG_VERSION:
 	case ARM_SMCCC_TRNG_FEATURES:
 	case ARM_SMCCC_TRNG_GET_UUID:

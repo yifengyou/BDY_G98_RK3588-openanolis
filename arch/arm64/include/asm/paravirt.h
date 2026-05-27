@@ -71,10 +71,20 @@ static inline void pv_kick(int cpu)
 
 #endif /* CONFIG_PARAVIRT_SCHED */
 
+int __init pv_idle_time_init(void);
+int pv_idle_time_cpu_online(unsigned int cpu);
+void pv_idle_time_enter(void);
+void pv_idle_time_exit(void);
+
 #else
 
 #define pv_time_init() do {} while (0)
 #define pv_sched_init() do {} while (0)
+#define pv_idle_time_init() do {} while (0)
+#define pv_idle_time_cpu_online(cpu) do {} while (0)
+
+static inline void pv_idle_time_enter(void) {}
+static inline void pv_idle_time_exit(void) {}
 
 #endif // CONFIG_PARAVIRT
 

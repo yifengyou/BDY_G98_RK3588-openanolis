@@ -23,6 +23,7 @@
 #include <asm/paravirt.h>
 #include <asm/pvclock-abi.h>
 #include <asm/pvsched-abi.h>
+#include <asm/pv_idle_time-abi.h>
 #include <asm/qspinlock_paravirt.h>
 #include <asm/smp_plat.h>
 
@@ -384,3 +385,119 @@ int __init pv_sched_init(void)
 	return 0;
 }
 #endif /* CONFIG_PARAVIRT_SCHED */
+
+/*
+ * Guest PV vCPU idle time
+ *
+ * Each vCPU registers a per-cpu shared page with the host via SMCCC.
+ * On idle entry/exit the guest writes the idle flag into that page.
+ */
+
+DEFINE_PER_CPU(struct kvm_idle_time, kvm_idle_time_region) __aligned(64);
+
+DEFINE_STATIC_KEY_FALSE(kvm_pv_idle_time_enabled);
+
+struct kvm_idle {
+	ktime_t idle_start;
+};
+static DEFINE_PER_CPU(struct kvm_idle, kvm_idle);
+
+void pv_idle_time_enter(void)
+{
+	struct kvm_idle_time *state = this_cpu_ptr(&kvm_idle_time_region);
+	struct kvm_idle *idle = this_cpu_ptr(&kvm_idle);
+
+	if (!static_branch_unlikely(&kvm_pv_idle_time_enabled))
+		return;
+
+	WRITE_ONCE(state->flag, cpu_to_le64(KVM_PV_VCPU_IDLE));
+
+	idle->idle_start = ktime_get();
+}
+
+void pv_idle_time_exit(void)
+{
+	struct kvm_idle_time *state = this_cpu_ptr(&kvm_idle_time_region);
+	struct kvm_idle *idle = this_cpu_ptr(&kvm_idle);
+	s64 idle_time;
+	u64 idle_accum;
+
+	if (!static_branch_unlikely(&kvm_pv_idle_time_enabled))
+		return;
+
+	WRITE_ONCE(state->flag, cpu_to_le64(KVM_PV_VCPU_RUNNING));
+
+	idle_time = ktime_to_ns(ktime_sub(ktime_get(), idle->idle_start));
+	idle_accum = le64_to_cpu(state->idle_accum) + idle_time;
+	WRITE_ONCE(state->idle_accum, cpu_to_le64(idle_accum));
+}
+
+static int pvidle_cpu_down_prepare(unsigned int cpu)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_1_1_invoke(ARM_SMCCC_HV_REGISTER_PV_IDLE_TIME,
+			     0, &res);
+	if (res.a0 != SMCCC_RET_SUCCESS)
+		pr_warn("%s: Failed to unregister pv idle time by SMCCC.\n", __func__);
+
+	return 0;
+}
+
+int pv_idle_time_cpu_online(unsigned int cpu)
+{
+	struct kvm_idle_time *state = this_cpu_ptr(&kvm_idle_time_region);
+	struct arm_smccc_res res;
+
+	if (!static_branch_unlikely(&kvm_pv_idle_time_enabled))
+		return 0;
+
+	/* Register per-cpu shared page with host via SMCCC. */
+	WRITE_ONCE(state->flag, cpu_to_le64(KVM_PV_VCPU_RUNNING));
+	WRITE_ONCE(state->idle_accum, cpu_to_le64(0));
+	arm_smccc_1_1_invoke(ARM_SMCCC_HV_REGISTER_PV_IDLE_TIME,
+			     virt_to_phys(state) | ARM_SMCCC_KVM_ENABLED, &res);
+	if (res.a0 != SMCCC_RET_SUCCESS)
+		pr_warn("%s: Failed to register PV idle time by SMCCC.\n", __func__);
+
+	return 0;
+}
+
+static bool kvm_has_pv_idle_time(void)
+{
+	struct arm_smccc_res res;
+
+	/* To detect the presence of PV idle time support we require SMCCC 1.1+ */
+	if (arm_smccc_1_1_get_conduit() == SMCCC_CONDUIT_NONE)
+		return false;
+
+	arm_smccc_1_1_invoke(ARM_SMCCC_ARCH_FEATURES_FUNC_ID,
+			     ARM_SMCCC_HV_PV_IDLE_TIME_FEATURES, &res);
+
+	return (res.a0 == SMCCC_RET_SUCCESS);
+}
+
+int __init pv_idle_time_init(void)
+{
+	int ret;
+
+	if (is_hyp_mode_available())
+		return 0;
+
+	if (!kvm_has_pv_idle_time())
+		return 0;
+
+	ret = cpuhp_setup_state(CPUHP_AP_ONLINE_DYN,
+				"hypervisor/arm/pv_idle_time:starting",
+				pv_idle_time_cpu_online,
+				pvidle_cpu_down_prepare);
+	if (ret < 0) {
+		pr_warn("PV idle time init failed\n");
+		return ret;
+	}
+
+	static_branch_enable(&kvm_pv_idle_time_enabled);
+	pr_info("using PV idle time\n");
+
+	return 0;
+}

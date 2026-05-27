@@ -131,6 +131,11 @@ The pseudo-firmware bitmap register are as follows:
       The bit represents the ARM_SMCCC_VENDOR_PV_SGI_FEATURES and
       ARM_SMCCC_VENDOR_PV_SGI_ENABLE function-ids.
 
+    Bit-5: KVM_REG_ARM_VENDOR_HYP_BIT_PV_IDLE_TIME:
+      The bit represents PV idle time feature:
+      ARM_SMCCC_HV_PV_IDLE_TIME_FEATURES and
+      ARM_SMCCC_HV_REGISTER_PV_IDLE_TIME function-ids.
+
 Errors:
 
     =======  =============================================================

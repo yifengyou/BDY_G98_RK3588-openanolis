@@ -400,6 +400,8 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 #ifdef CONFIG_PARAVIRT_SPINLOCKS
 	pv_qspinlock_init();
 #endif
+
+	pv_idle_time_init();
 }
 
 static inline bool cpu_can_disable(unsigned int cpu)

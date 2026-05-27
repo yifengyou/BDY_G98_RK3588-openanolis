@@ -472,6 +472,8 @@ void __init smp_prepare_boot_cpu(void)
 	kasan_init_hw_tags();
 	/* Init percpu seeds for random tags after cpus are set up. */
 	kasan_init_sw_tags();
+
+	pv_idle_time_cpu_online(smp_processor_id());
 }
 
 /*

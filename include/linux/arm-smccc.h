@@ -166,6 +166,21 @@
 			   ARM_SMCCC_OWNER_VENDOR_HYP,		\
 			   0xc1)
 
+#define ARM_SMCCC_KVM_ENABLED	1
+
+/* Paravirtualized vCPU idle hint (KVM vendor hyp services) */
+#define ARM_SMCCC_HV_PV_IDLE_TIME_FEATURES			\
+	ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL,			\
+			   ARM_SMCCC_SMC_64,			\
+			   ARM_SMCCC_OWNER_VENDOR_HYP,		\
+			   0xd0)
+
+#define ARM_SMCCC_HV_REGISTER_PV_IDLE_TIME			\
+	ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL,			\
+			   ARM_SMCCC_SMC_64,			\
+			   ARM_SMCCC_OWNER_VENDOR_HYP,		\
+			   0xd1)
+
 /* TRNG entropy source calls (defined by ARM DEN0098) */
 #define ARM_SMCCC_TRNG_VERSION					\
 	ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL,			\

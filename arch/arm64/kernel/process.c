@@ -56,6 +56,7 @@
 #include <asm/stacktrace.h>
 #include <asm/switch_to.h>
 #include <asm/system_misc.h>
+#include <asm/paravirt.h>
 
 #if defined(CONFIG_STACKPROTECTOR) && !defined(CONFIG_STACKPROTECTOR_PER_TASK)
 #include <linux/stackprotector.h>
@@ -75,6 +76,11 @@ void __noreturn arch_cpu_idle_dead(void)
        cpu_die();
 }
 #endif
+
+void arch_cpu_idle_exit(void)
+{
+	pv_idle_time_exit();
+}
 
 /*
  * Called by kexec, immediately prior to machine_kexec().

@@ -386,6 +386,7 @@ enum {
 	 * current sequence, add in sequence.
 	 */
 	KVM_REG_ARM_VENDOR_HYP_BIT_IPIV         = 4,
+	KVM_REG_ARM_VENDOR_HYP_BIT_PV_IDLE_TIME = 5,
 #ifdef __KERNEL__
 	KVM_REG_ARM_VENDOR_HYP_BMAP_BIT_COUNT,
 #endif
