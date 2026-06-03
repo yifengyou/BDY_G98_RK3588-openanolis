@@ -1060,6 +1060,8 @@ static int check_vcpu_requests(struct kvm_vcpu *vcpu)
 
 		if (kvm_check_request(KVM_REQ_RELOAD_TLBI_DVMBM, vcpu))
 			kvm_hisi_reload_lsudvmbm(vcpu->kvm);
+
+		check_nested_vcpu_requests(vcpu);
 	}
 
 	return 1;
