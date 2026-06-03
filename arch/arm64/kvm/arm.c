@@ -2098,6 +2098,12 @@ static unsigned long nvhe_percpu_order(void)
 
 	return size ? get_order(size) : 0;
 }
+
+static size_t pkvm_host_sve_state_order(void)
+{
+	return get_order(pkvm_host_sve_state_size());
+}
+
 #endif
 
 /* A lookup table holding the hypervisor VA for each vector slot */
@@ -2517,15 +2523,27 @@ static int __init init_hyp_mode(void)
 	kvm_err("init hyp mode is not allowed\n");
 	return -EPERM;
 }
+
+static void finalize_init_hyp_mode(void)
+{
+}
 #else
 static void __init teardown_hyp_mode(void)
 {
+	bool free_sve = system_supports_sve() && is_protected_kvm_enabled();
 	int cpu;
 
 	free_hyp_pgds();
 	for_each_possible_cpu(cpu) {
 		free_page(per_cpu(kvm_arm_hyp_stack_page, cpu));
 		free_pages(kvm_nvhe_sym(kvm_arm_hyp_percpu_base)[cpu], nvhe_percpu_order());
+
+		if (free_sve) {
+			struct cpu_sve_state *sve_state;
+
+			sve_state = per_cpu_ptr_nvhe_sym(kvm_host_data, cpu)->sve_state;
+			free_pages((unsigned long) sve_state, pkvm_host_sve_state_order());
+		}
 	}
 }
 
@@ -2608,6 +2626,50 @@ static int __init kvm_hyp_init_protection(u32 hyp_va_bits)
 	free_hyp_pgds();
 
 	return 0;
+}
+
+static int init_pkvm_host_sve_state(void)
+{
+	int cpu;
+
+	if (!system_supports_sve())
+		return 0;
+
+	/* Allocate pages for host sve state in protected mode. */
+	for_each_possible_cpu(cpu) {
+		struct page *page = alloc_pages(GFP_KERNEL, pkvm_host_sve_state_order());
+
+		if (!page)
+			return -ENOMEM;
+
+		per_cpu_ptr_nvhe_sym(kvm_host_data, cpu)->sve_state = page_address(page);
+	}
+
+	/*
+	 * Don't map the pages in hyp since these are only used in protected
+	 * mode, which will (re)create its own mapping when initialized.
+	 */
+
+	return 0;
+}
+
+/*
+ * Finalizes the initialization of hyp mode, once everything else is initialized
+ * and the initialziation process cannot fail.
+ */
+static void finalize_init_hyp_mode(void)
+{
+	int cpu;
+
+	if (!is_protected_kvm_enabled() || !system_supports_sve())
+		return;
+
+	for_each_possible_cpu(cpu) {
+		struct cpu_sve_state *sve_state;
+
+		sve_state = per_cpu_ptr_nvhe_sym(kvm_host_data, cpu)->sve_state;
+		per_cpu_ptr_nvhe_sym(kvm_host_data, cpu)->sve_state = kern_hyp_va(sve_state);
+	}
 }
 
 static void pkvm_hyp_init_ptrauth(void)
@@ -2777,6 +2839,10 @@ static int __init init_hyp_mode(void)
 			err = -ENODEV;
 			goto out_err;
 		}
+
+		err = init_pkvm_host_sve_state();
+		if (err)
+			goto out_err;
 
 		err = kvm_hyp_init_protection(hyp_va_bits);
 		if (err) {
@@ -2971,6 +3037,13 @@ static __init int kvm_arm_init(void)
 	err = kvm_init(sizeof(struct kvm_vcpu), 0, THIS_MODULE);
 	if (err)
 		goto out_subs;
+
+	/*
+	 * This should be called after initialization is done and failure isn't
+	 * possible anymore.
+	 */
+	if (!in_hyp_mode)
+		finalize_init_hyp_mode();
 
 	kvm_arm_initialised = true;
 
