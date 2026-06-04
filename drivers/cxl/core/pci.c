@@ -219,8 +219,8 @@ static int cxl_set_mem_enable(struct cxl_dev_state *cxlds, u16 val)
 	int rc;
 
 	rc = pci_read_config_word(pdev, d + CXL_DVSEC_CTRL_OFFSET, &ctrl);
-	if (rc < 0)
-		return rc;
+	if (rc)
+		return pcibios_err_to_errno(rc);
 
 	if ((ctrl & CXL_DVSEC_MEM_ENABLE) == val)
 		return 1;
@@ -228,8 +228,8 @@ static int cxl_set_mem_enable(struct cxl_dev_state *cxlds, u16 val)
 	ctrl |= val;
 
 	rc = pci_write_config_word(pdev, d + CXL_DVSEC_CTRL_OFFSET, ctrl);
-	if (rc < 0)
-		return rc;
+	if (rc)
+		return pcibios_err_to_errno(rc);
 
 	return 0;
 }
