@@ -696,7 +696,7 @@ static void header_log_copy(void __iomem *ras_base, u32 *log)
 static bool __cxl_handle_ras(struct cxl_dev_state *cxlds,
 				  void __iomem *ras_base)
 {
-	u32 hl[CXL_HEADERLOG_SIZE_U32];
+	u32 hl[CXL_HEADERLOG_TRACE_SIZE_U32] = {};
 	void __iomem *addr;
 	u32 status;
 	u32 fe;
