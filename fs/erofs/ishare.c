@@ -14,8 +14,7 @@ static struct vfsmount *erofs_ishare_mnt;
 
 static inline bool erofs_is_ishare_inode(struct inode *inode)
 {
-	/* assumed FS_ONDEMAND is excluded with FS_PAGE_CACHE_SHARE feature */
-	return inode->i_sb->s_type == &erofs_anon_fs_type;
+	return inode->i_sb == erofs_ishare_mnt->mnt_sb;
 }
 
 static int erofs_ishare_iget5_eq(struct inode *inode, void *data)

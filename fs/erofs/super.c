@@ -623,7 +623,12 @@ static int erofs_fc_fill_super(struct super_block *sb, struct fs_context *fc)
 	sb->s_maxbytes = MAX_LFS_FILESIZE;
 	sb->s_op = &erofs_sops;
 
-	if (!sbi->domain_id && test_opt(&sbi->opt, INODE_SHARE)) {
+	if (sbi->domain_id) {
+		if (!test_opt(&sbi->opt, INODE_SHARE) && !sbi->fsid) {
+			errorfc(fc, "domain_id cannot be used without fsid= or inode_ishare");
+			return -EINVAL;
+		}
+	} else if (test_opt(&sbi->opt, INODE_SHARE)) {
 		errorfc(fc, "domain_id is needed when inode_ishare is on");
 		return -EINVAL;
 	}
@@ -695,8 +700,6 @@ static int erofs_fc_fill_super(struct super_block *sb, struct fs_context *fc)
 		erofs_info(sb, "on-disk ishare xattrs not found. Turning off inode_share.");
 		clear_opt(&sbi->opt, INODE_SHARE);
 	}
-	if (test_opt(&sbi->opt, INODE_SHARE))
-		erofs_info(sb, "EXPERIMENTAL EROFS page cache share support in use. Use at your own risk!");
 
 	sb->s_time_gran = 1;
 	sb->s_xattr = (const struct xattr_handler **)erofs_xattr_handlers;
@@ -1068,7 +1071,7 @@ static int erofs_show_options(struct seq_file *seq, struct dentry *root)
 #ifdef CONFIG_EROFS_FS_ONDEMAND
 	if (sbi->fsid)
 		seq_printf(seq, ",fsid=%s", sbi->fsid);
-	if (sbi->domain_id)
+	if (sbi->domain_id && !test_opt(opt, INODE_SHARE))
 		seq_printf(seq, ",domain_id=%s", sbi->domain_id);
 #endif
 	if (sbi->dif0.fsoff)
