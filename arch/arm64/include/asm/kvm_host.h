@@ -733,6 +733,8 @@ struct vcpu_reset_state {
 	bool		reset;
 };
 
+struct vncr_tlb;
+
 struct kvm_vcpu_arch {
 	struct kvm_cpu_context ctxt;
 
@@ -834,6 +836,9 @@ struct kvm_vcpu_arch {
 
 	/* Per-vcpu CCSIDR override or NULL */
 	u32 *ccsidr;
+
+	/* Per-vcpu TLB for VNCR_EL2 -- NULL when !NV */
+	struct vncr_tlb *vncr_tlb;
 
 #ifdef CONFIG_KVM_HISI_VIRT
 	/* pCPUs this vCPU can be scheduled on. Pure copy of current->cpus_ptr */
