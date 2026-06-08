@@ -59,7 +59,6 @@ void kvm_vgic_early_init(struct kvm *kvm)
 {
 	struct vgic_dist *dist = &kvm->arch.vgic;
 
-	raw_spin_lock_init(&dist->lpi_list_lock);
 	xa_init_flags(&dist->lpi_xa, XA_FLAGS_LOCK_IRQ);
 #ifdef CONFIG_VIRT_PLAT_DEV
 	INIT_LIST_HEAD(&dist->sdev_list_head);
