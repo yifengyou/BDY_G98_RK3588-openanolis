@@ -79,6 +79,14 @@ SYM_CODE_START_NOALIGN(relocate_kernel)
 	pushq $0
 	popfq
 
+	/*
+	 * Disable global pages immediately to ensure this mapping is RWX.
+	 * Disable LASS before jumping to the identity mapped page.
+	 */
+	movq	%r13, %r12
+	andq	$~(X86_CR4_PGE | X86_CR4_LASS), %r12
+	movq	%r12, %cr4
+
 	/* Save SME active flag */
 	movq	%r8, %r12
 
