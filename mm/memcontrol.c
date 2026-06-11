@@ -2651,6 +2651,8 @@ static int memcg_hotplug_cpu_dead(unsigned int cpu)
 static void reclaim_wmark(struct mem_cgroup *memcg)
 {
 	long nr_pages;
+	unsigned long nr_to_reclaim, nr_reclaimed = 0;
+	unsigned int nr_retries = MAX_RECLAIM_RETRIES;
 	unsigned long pflags;
 	struct mem_cgroup *iter;
 	u64 start, duration;
@@ -2663,7 +2665,7 @@ static void reclaim_wmark(struct mem_cgroup *memcg)
 	if (nr_pages <= 0)
 		return;
 
-	nr_pages = max_t(unsigned long, SWAP_CLUSTER_MAX, nr_pages);
+	nr_to_reclaim = max_t(unsigned long, SWAP_CLUSTER_MAX, nr_pages);
 
 	/*
 	 * Typically, we would like to record the actual cpu% of reclaim_wmark
@@ -2673,7 +2675,29 @@ static void reclaim_wmark(struct mem_cgroup *memcg)
 	 */
 	start = ktime_get_ns();
 	psi_memstall_enter(&pflags);
-	try_to_free_mem_cgroup_pages(memcg, nr_pages, GFP_KERNEL, MEMCG_RECLAIM_MAY_SWAP);
+	while (nr_reclaimed < nr_to_reclaim) {
+		unsigned long reclaimed;
+
+		/*
+		 * This is the final attempt, drain percpu lru caches in the
+		 * hope of introducing more evictable pages for
+		 * try_to_free_mem_cgroup_pages().
+		 */
+		if (!nr_retries)
+			lru_add_drain_all();
+
+		reclaimed = try_to_free_mem_cgroup_pages(memcg,
+			min(nr_to_reclaim - nr_reclaimed, (unsigned long)SWAP_CLUSTER_MAX),
+			GFP_KERNEL, MEMCG_RECLAIM_MAY_SWAP);
+
+		if (!reclaimed && !nr_retries--)
+			break;
+
+		if (is_wmark_ok(memcg, false))
+			break;
+
+		nr_reclaimed += reclaimed;
+	}
 	psi_memstall_leave(&pflags);
 	duration = ktime_get_ns() - start;
 

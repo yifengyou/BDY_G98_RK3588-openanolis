@@ -6237,7 +6237,7 @@ again:
 	if (nr_node_reclaimed)
 		reclaimable = true;
 
-	if (current_is_kswapd()) {
+	if (current_is_kswapd() && !(current->flags & PF_WQ_WORKER)) {
 		/*
 		 * If reclaim is isolating dirty pages under writeback,
 		 * it implies that the long-lived page allocation rate
@@ -6272,6 +6272,9 @@ again:
 		/*
 		 * Throttle if direct reclaim cannot make progress due to
 		 * a large number of dirty and writeback folios.
+		 *
+		 * Also throttle the wmark worker when reclaim cannot make
+		 * progress due to too many dirty pages.
 		 */
 		reclaim_throttle(pgdat, VMSCAN_THROTTLE_WRITEBACK);
 	}
