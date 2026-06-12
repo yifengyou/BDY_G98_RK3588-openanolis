@@ -1036,10 +1036,6 @@ retry:
 		}
 	} while (iov_iter_count(i) && length);
 
-	if (status == -EAGAIN) {
-		iov_iter_revert(i, total_written);
-		return -EAGAIN;
-	}
 	return total_written ? total_written : status;
 }
 
