@@ -2841,7 +2841,7 @@ static bool mf_isolate_folio(struct folio *folio, struct list_head *pagelist)
 	bool isolated = false;
 
 	if (folio_test_hugetlb(folio)) {
-		isolated = isolate_hugetlb(folio, pagelist);
+		isolated = folio_isolate_hugetlb(folio, pagelist);
 	} else {
 		bool lru = !__folio_test_movable(folio);
 
