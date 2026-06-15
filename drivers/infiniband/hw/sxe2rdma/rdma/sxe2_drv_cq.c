@@ -10,7 +10,7 @@
  */
 
 #include <rdma/uverbs_ioctl.h>
-#include <rdma/ib_umem.h>
+#include <rdma/iter.h>
 #include <linux/atomic.h>
 #include <linux/module.h>
 #include <linux/mm.h>

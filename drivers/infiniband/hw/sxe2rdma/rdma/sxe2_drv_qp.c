@@ -14,7 +14,7 @@
 #include <linux/sizes.h>
 #include <linux/rcupdate.h>
 #include <rdma/ib_verbs.h>
-#include <rdma/ib_umem.h>
+#include <rdma/iter.h>
 #include <rdma/ib_cache.h>
 #include <rdma/ib_addr.h>
 #include <net/route.h>

@@ -12,7 +12,7 @@
 #include <linux/err.h>
 
 #include <rdma/ib_verbs.h>
-#include <rdma/ib_umem.h>
+#include <rdma/iter.h>
 #include <linux/random.h>
 
 #include "sxe2-abi.h"

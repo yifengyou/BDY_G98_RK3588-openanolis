@@ -7,7 +7,7 @@
 
 #include "sxe2_compat_gcc.h"
 
-#include <rdma/ib_umem.h>
+#include <rdma/iter.h>
 #include <linux/scatterlist.h>
 #include <rdma/ib_user_verbs.h>
 
