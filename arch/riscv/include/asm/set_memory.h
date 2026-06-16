@@ -39,6 +39,8 @@ static inline int set_kernel_memory(char *startp, char *endp,
 	return 0;
 }
 #endif
+/* No support for setting memory_np */
+static inline int set_memory_np(unsigned long addr, int numpages) { return 0; }
 
 int set_direct_map_invalid_noflush(struct page *page);
 int set_direct_map_default_noflush(struct page *page);
