@@ -7089,6 +7089,15 @@ static bool kswapd_shrink_node(pg_data_t *pgdat,
 	}
 
 	/*
+	 * For high-order allocations, if order-0 watermarks are already met,
+	 * cap reclaim to avoid excessive pagecache eviction — let compaction
+	 * handle the fragmentation instead.
+	 */
+	if (sc->order && pgdat_balanced(pgdat, 0, sc->reclaim_idx))
+		sc->nr_to_reclaim = min(sc->nr_to_reclaim,
+					2UL * compact_gap(sc->order));
+
+	/*
 	 * Historically care was taken to put equal pressure on all zones but
 	 * now pressure is applied based on node LRU order.
 	 */
