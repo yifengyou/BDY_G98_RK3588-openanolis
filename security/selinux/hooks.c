@@ -7023,7 +7023,20 @@ static int selinux_secctx_to_secid(const char *secdata, u32 seclen, u32 *secid)
 
 static void selinux_release_secctx(char *secdata, u32 seclen)
 {
-	kfree(secdata);
+	/*
+	 * Before the introduction of namespaces, `secctx` content was
+	 * dynamically allocated via `kmemdup`, and therefore needed to
+	 * be released.
+	 *
+	 * In the latest upstream, data in `lsm_context` is also
+	 * dynamically allocated and needs to be released as needed.
+	 *
+	 * However, when porting namespaces feature to v6.6, `secdata`
+	 * always points to static data and does not need to be released,
+	 * even this callback function doesn't need to be retained.
+	 * To maintain consistency in the code, an empty function is
+	 * retained here.
+	 */
 }
 
 static void selinux_inode_invalidate_secctx(struct inode *inode)
