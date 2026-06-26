@@ -195,10 +195,6 @@ bool __read_mostly enable_pmu = true;
 EXPORT_SYMBOL_GPL(enable_pmu);
 module_param(enable_pmu, bool, 0444);
 
-/* Enable/disabled mediated PMU virtualization. */
-bool __read_mostly enable_mediated_pmu;
-EXPORT_SYMBOL_GPL(enable_mediated_pmu);
-
 bool __read_mostly eager_page_split = true;
 module_param(eager_page_split, bool, 0644);
 
@@ -6600,7 +6596,7 @@ split_irqchip_unlock:
 			break;
 
 		mutex_lock(&kvm->lock);
-		if (!kvm->created_vcpus && !kvm->arch.created_mediated_pmu) {
+		if (!kvm->created_vcpus) {
 			kvm->arch.enable_pmu = !(cap->args[0] & KVM_PMU_CAP_DISABLE);
 			r = 0;
 		}
@@ -12169,13 +12165,8 @@ static int sync_regs(struct kvm_vcpu *vcpu)
 	return 0;
 }
 
-#define PERF_MEDIATED_PMU_MSG \
-	"Failed to enable mediated vPMU, try disabling system wide perf events and nmi_watchdog.\n"
-
 int kvm_arch_vcpu_precreate(struct kvm *kvm, unsigned int id)
 {
-	int r;
-
 	if (kvm_check_tsc_unstable() && kvm->created_vcpus)
 		pr_warn_once("SMP vm created on host with unstable TSC; "
 			     "guest TSC will not be reliable\n");
@@ -12186,29 +12177,7 @@ int kvm_arch_vcpu_precreate(struct kvm *kvm, unsigned int id)
 	if (id >= kvm->arch.max_vcpu_ids)
 		return -EINVAL;
 
-	/*
-	 * Note, any actions done by .vcpu_create() must be idempotent with
-	 * respect to creating multiple vCPUs, and therefore are not undone if
-	 * creating a vCPU fails (including failure during pre-create).
-	 */
-	r = static_call(kvm_x86_vcpu_precreate)(kvm);
-	if (r)
-		return r;
-
-	if (enable_mediated_pmu && kvm->arch.enable_pmu &&
-	    !kvm->arch.created_mediated_pmu) {
-		if (irqchip_in_kernel(kvm)) {
-			r = perf_create_mediated_pmu();
-			if (r) {
-				pr_warn_ratelimited(PERF_MEDIATED_PMU_MSG);
-				return r;
-			}
-			kvm->arch.created_mediated_pmu = true;
-		} else {
-			kvm->arch.enable_pmu = false;
-		}
-	}
-	return 0;
+	return static_call(kvm_x86_vcpu_precreate)(kvm);
 }
 
 int kvm_arch_vcpu_create(struct kvm_vcpu *vcpu)
@@ -12870,8 +12839,6 @@ void kvm_arch_destroy_vm(struct kvm *kvm)
 	}
 	kvm_unload_vcpu_mmus(kvm);
 	static_call_cond(kvm_x86_vm_destroy)(kvm);
-	if (kvm->arch.created_mediated_pmu)
-		perf_release_mediated_pmu();
 	kvm_free_msr_filter(srcu_dereference_check(kvm->arch.msr_filter, &kvm->srcu, 1));
 	kvm_pic_destroy(kvm);
 	kvm_ioapic_destroy(kvm);

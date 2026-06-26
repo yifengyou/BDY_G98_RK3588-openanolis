@@ -37,8 +37,6 @@ struct kvm_pmu_ops {
 	void (*deliver_pmi)(struct kvm_vcpu *vcpu);
 	void (*cleanup)(struct kvm_vcpu *vcpu);
 
-	bool (*is_mediated_pmu_supported)(struct x86_pmu_capability *host_pmu);
-
 	const u64 EVENTSEL_EVENT;
 	const int MAX_NR_GP_COUNTERS;
 	const int MIN_NR_GP_COUNTERS;
@@ -58,11 +56,6 @@ static inline bool kvm_pmu_has_perf_global_ctrl(struct kvm_pmu *pmu)
 	 * AMD's version of PERF_GLOBAL_CTRL conveniently shows up with v2.
 	 */
 	return pmu->version > 1;
-}
-
-static inline bool kvm_vcpu_has_mediated_pmu(struct kvm_vcpu *vcpu)
-{
-	return enable_mediated_pmu && vcpu_to_pmu(vcpu)->version;
 }
 
 static inline u64 pmc_bitmask(struct kvm_pmc *pmc)
@@ -200,10 +193,6 @@ static inline void kvm_init_pmu_capability(const struct kvm_pmu_ops *pmu_ops)
 		else if (is_intel && !kvm_pmu_cap.version)
 			enable_pmu = false;
 	}
-
-	if (!enable_pmu || !enable_mediated_pmu || !kvm_pmu_cap.mediated ||
-	    !pmu_ops->is_mediated_pmu_supported(&kvm_pmu_cap))
-		enable_mediated_pmu = false;
 
 	if (!enable_pmu) {
 		memset(&kvm_pmu_cap, 0, sizeof(kvm_pmu_cap));
