@@ -75,16 +75,6 @@ void kvm_init_pmu_capability(const struct kvm_pmu_ops *pmu_ops)
 					     KVM_PMC_MAX_FIXED);
 }
 
-void kvm_handle_guest_mediated_pmi(void)
-{
-	struct kvm_vcpu *vcpu = kvm_get_running_vcpu();
-
-	if (WARN_ON_ONCE(!vcpu || !kvm_vcpu_has_mediated_pmu(vcpu)))
-		return;
-
-	kvm_make_request(KVM_REQ_PMI, vcpu);
-}
-
 /* Precise Distribution of Instructions Retired (PDIR) */
 static const struct x86_cpu_id vmx_pebs_pdir_cpu[] = {
 	X86_MATCH_INTEL_FAM6_MODEL(ICELAKE_D, NULL),
