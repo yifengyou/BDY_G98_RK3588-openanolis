@@ -1281,11 +1281,6 @@ static void svm_recalc_instruction_intercepts(struct kvm_vcpu *vcpu,
 		else
 			svm_set_intercept(svm, INTERCEPT_RDTSCP);
 	}
-
-	if (kvm_need_rdpmc_intercept(vcpu))
-		svm_set_intercept(svm, INTERCEPT_RDPMC);
-	else
-		svm_clr_intercept(svm, INTERCEPT_RDPMC);
 }
 
 static inline void init_vmcb_after_set_cpuid(struct kvm_vcpu *vcpu)
