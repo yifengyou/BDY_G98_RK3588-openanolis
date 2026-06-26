@@ -601,32 +601,12 @@ int kvm_pmu_rdpmc(struct kvm_vcpu *vcpu, unsigned idx, u64 *data)
 	return 0;
 }
 
-static bool kvm_need_any_pmc_intercept(struct kvm_vcpu *vcpu)
+bool kvm_need_rdpmc_intercept(struct kvm_vcpu *vcpu)
 {
 	struct kvm_pmu *pmu = vcpu_to_pmu(vcpu);
 
 	if (!kvm_vcpu_has_mediated_pmu(vcpu))
 		return true;
-
-	/*
-	 * Note!  Check *host* PMU capabilities, not KVM's PMU capabilities, as
-	 * KVM's capabilities are constrained based on KVM support, i.e. KVM's
-	 * capabilities themselves may be a subset of hardware capabilities.
-	 */
-	return pmu->nr_arch_gp_counters != kvm_pmu_cap.num_counters_gp ||
-	       pmu->nr_arch_fixed_counters != kvm_pmu_cap.num_counters_fixed;
-}
-
-bool kvm_need_perf_global_ctrl_intercept(struct kvm_vcpu *vcpu)
-{
-	return kvm_need_any_pmc_intercept(vcpu) ||
-	       !kvm_pmu_has_perf_global_ctrl(vcpu_to_pmu(vcpu));
-}
-EXPORT_SYMBOL_GPL(kvm_need_perf_global_ctrl_intercept);
-
-bool kvm_need_rdpmc_intercept(struct kvm_vcpu *vcpu)
-{
-	struct kvm_pmu *pmu = vcpu_to_pmu(vcpu);
 
 	/*
 	 * VMware allows access to these Pseduo-PMCs even when read via RDPMC
@@ -635,7 +615,13 @@ bool kvm_need_rdpmc_intercept(struct kvm_vcpu *vcpu)
 	if (enable_vmware_backdoor)
 		return true;
 
-	return kvm_need_any_pmc_intercept(vcpu) ||
+	/*
+	 * Note!  Check *host* PMU capabilities, not KVM's PMU capabilities, as
+	 * KVM's capabilities are constrained based on KVM support, i.e. KVM's
+	 * capabilities themselves may be a subset of hardware capabilities.
+	 */
+	return pmu->nr_arch_gp_counters != kvm_pmu_cap.num_counters_gp ||
+	       pmu->nr_arch_fixed_counters != kvm_pmu_cap.num_counters_fixed ||
 	       pmu->counter_bitmask[KVM_PMC_GP] != (BIT_ULL(kvm_pmu_cap.bit_width_gp) - 1) ||
 	       pmu->counter_bitmask[KVM_PMC_FIXED] != (BIT_ULL(kvm_pmu_cap.bit_width_fixed) - 1);
 }
@@ -835,12 +821,11 @@ void kvm_pmu_refresh(struct kvm_vcpu *vcpu)
 	 * in the global controls).  Emulate that behavior when refreshing the
 	 * PMU so that userspace doesn't need to manually set PERF_GLOBAL_CTRL.
 	 */
-	if (pmu->nr_arch_gp_counters &&
-	    (kvm_pmu_has_perf_global_ctrl(pmu) || kvm_vcpu_has_mediated_pmu(vcpu)))
+	if (kvm_pmu_has_perf_global_ctrl(pmu) && pmu->nr_arch_gp_counters) {
 		pmu->global_ctrl = GENMASK_ULL(pmu->nr_arch_gp_counters - 1, 0);
-
-	if (kvm_vcpu_has_mediated_pmu(vcpu))
-		static_call_cond(kvm_x86_pmu_write_global_ctrl)(pmu->global_ctrl);
+		if (kvm_vcpu_has_mediated_pmu(vcpu))
+			static_call_cond(kvm_x86_pmu_write_global_ctrl)(pmu->global_ctrl);
+	}
 }
 
 void kvm_pmu_init(struct kvm_vcpu *vcpu)
