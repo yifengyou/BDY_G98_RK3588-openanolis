@@ -293,7 +293,6 @@ struct perf_event_pmu_context;
 #define PERF_PMU_CAP_NO_EXCLUDE			0x0040
 #define PERF_PMU_CAP_AUX_OUTPUT			0x0080
 #define PERF_PMU_CAP_EXTENDED_HW_TYPE		0x0100
-#define PERF_PMU_CAP_MEDIATED_VPMU		0x0800
 
 /**
  * pmu::scope
@@ -1793,12 +1792,6 @@ extern void perf_event_task_tick(void);
 extern int perf_event_account_interrupt(struct perf_event *event);
 extern int perf_event_period(struct perf_event *event, u64 value);
 extern u64 perf_event_pause(struct perf_event *event, bool reset);
-
-#ifdef CONFIG_PERF_GUEST_MEDIATED_PMU
-int perf_create_mediated_pmu(void);
-void perf_release_mediated_pmu(void);
-#endif
-
 #else /* !CONFIG_PERF_EVENTS: */
 static inline void *
 perf_aux_output_begin(struct perf_output_handle *handle,
