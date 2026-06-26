@@ -305,7 +305,7 @@ static ssize_t ext4_write_checks(struct kiocb *iocb, struct iov_iter *from)
 	if (count <= 0)
 		return count;
 
-	ret = file_modified(iocb->ki_filp);
+	ret = kiocb_modified(iocb);
 	if (ret)
 		return ret;
 	return count;
@@ -443,7 +443,7 @@ static const struct iomap_dio_ops ext4_dio_write_ops = {
  *
  * The decision is layered, evaluated in this order:
  *
- * 1. If file_modified() needs to update security info (!IS_NOSEC), upgrade
+ * 1. If kiocb_modified() needs to update security info (!IS_NOSEC), upgrade
  *    to the exclusive lock -- the security update itself requires it,
  *    regardless of whether the write extends the file or is aligned.
  *
@@ -533,7 +533,7 @@ restart:
 		*dio_flags = IOMAP_DIO_FORCE_WAIT;
 	}
 
-	ret = file_modified(file);
+	ret = kiocb_modified(iocb);
 	if (ret < 0)
 		goto out;
 
