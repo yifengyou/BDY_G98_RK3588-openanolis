@@ -9,10 +9,6 @@
 #include "kvm_cache_regs.h"
 #include "kvm_emulate.h"
 
-#define MSR_TYPE_R	1
-#define MSR_TYPE_W	2
-#define MSR_TYPE_RW	3
-
 struct kvm_caps {
 	/* control of guest tsc rate supported? */
 	bool has_tsc_control;

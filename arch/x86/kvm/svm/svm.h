@@ -606,18 +606,8 @@ bool svm_nmi_blocked(struct kvm_vcpu *vcpu);
 bool svm_interrupt_blocked(struct kvm_vcpu *vcpu);
 void svm_set_gif(struct vcpu_svm *svm, bool value);
 int svm_invoke_exit_handler(struct kvm_vcpu *vcpu, u64 exit_code);
-void svm_enable_intercept_for_msr(struct kvm_vcpu *vcpu, u32 msr, int type);
-void svm_disable_intercept_for_msr(struct kvm_vcpu *vcpu, u32 msr, int type);
-
-static inline void svm_set_intercept_for_msr(struct kvm_vcpu *vcpu, u32 msr,
-					     int type, bool enable_intercept)
-{
-	if (enable_intercept)
-		svm_enable_intercept_for_msr(vcpu, msr, type);
-	else
-		svm_disable_intercept_for_msr(vcpu, msr, type);
-}
-
+void set_msr_interception(struct kvm_vcpu *vcpu, u32 *msrpm, u32 msr,
+			  int read, int write);
 void svm_set_x2apic_msr_interception(struct vcpu_svm *svm, bool disable);
 void svm_complete_interrupt_delivery(struct kvm_vcpu *vcpu, int delivery_mode,
 				     int trig_mode, int vec);
