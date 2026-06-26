@@ -937,12 +937,6 @@ struct perf_event_pmu_context {
 	int				rotate_necessary;
 };
 
-struct perf_time_ctx {
-	u64		time;
-	u64		stamp;
-	u64		offset;
-};
-
 struct perf_event_groups {
 	struct rb_root	tree;
 	u64		index;
@@ -987,7 +981,9 @@ struct perf_event_context {
 	/*
 	 * Context clock, runs when context enabled.
 	 */
-	struct perf_time_ctx		time;
+	u64				time;
+	u64				timestamp;
+	u64				timeoffset;
 
 	/*
 	 * These fields let us detect when two contexts have both
@@ -1090,7 +1086,9 @@ struct bpf_perf_event_data_kern {
  * This is a per-cpu dynamically allocated data structure.
  */
 struct perf_cgroup_info {
-	struct perf_time_ctx		time;
+	u64				time;
+	u64				timestamp;
+	u64				timeoffset;
 	int				active;
 };
 
