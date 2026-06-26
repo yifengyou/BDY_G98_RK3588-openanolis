@@ -5026,7 +5026,6 @@ static void free_event_rcu(struct rcu_head *head)
 {
 	struct perf_event *event = container_of(head, typeof(*event), rcu_head);
 
-	security_perf_event_free(event);
 	if (event->ns)
 		put_pid_ns(event->ns);
 	perf_event_free_filter(event);
@@ -5266,6 +5265,8 @@ static void _free_event(struct perf_event *event)
 	perf_pending_task_sync(event);
 
 	unaccount_event(event);
+
+	security_perf_event_free(event);
 
 	if (event->rb) {
 		/*
