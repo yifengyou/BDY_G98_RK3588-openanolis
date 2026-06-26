@@ -11048,8 +11048,6 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 		run_flags |= KVM_RUN_LOAD_DEBUGCTL;
 	vcpu->arch.host_debugctl = debug_ctl;
 
-	kvm_mediated_pmu_load(vcpu);
-
 	guest_timing_enter_irqoff();
 
 	for (;;) {
@@ -11118,8 +11116,6 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 		fpu_sync_guest_vmexit_xfd_state();
 
 	static_call(kvm_x86_handle_exit_irqoff)(vcpu);
-
-	kvm_mediated_pmu_put(vcpu);
 
 	if (vcpu->arch.guest_fpu.xfd_err)
 		wrmsrl(MSR_IA32_XFD_ERR, 0);
