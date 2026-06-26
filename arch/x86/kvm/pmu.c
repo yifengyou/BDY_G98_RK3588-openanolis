@@ -455,36 +455,12 @@ static bool pmc_event_is_allowed(struct kvm_pmc *pmc)
 	       check_pmu_event_filter(pmc);
 }
 
-static void kvm_mediated_pmu_refresh_event_filter(struct kvm_pmc *pmc)
-{
-	bool allowed = check_pmu_event_filter(pmc);
-	struct kvm_pmu *pmu = pmc_to_pmu(pmc);
-
-	if (pmc_is_gp(pmc)) {
-		pmc->eventsel_hw &= ~ARCH_PERFMON_EVENTSEL_ENABLE;
-		if (allowed)
-			pmc->eventsel_hw |= pmc->eventsel &
-					    ARCH_PERFMON_EVENTSEL_ENABLE;
-	} else {
-		u64 mask = intel_fixed_bits_by_idx(pmc->idx - INTEL_PMC_IDX_FIXED, 0xf);
-
-		pmu->fixed_ctr_ctrl_hw &= ~mask;
-		if (allowed)
-			pmu->fixed_ctr_ctrl_hw |= pmu->fixed_ctr_ctrl & mask;
-	}
-}
-
 static void reprogram_counter(struct kvm_pmc *pmc)
 {
 	struct kvm_pmu *pmu = pmc_to_pmu(pmc);
 	u64 eventsel = pmc->eventsel;
 	u64 new_config = eventsel;
 	u8 fixed_ctr_ctrl;
-
-	if (kvm_vcpu_has_mediated_pmu(pmu_to_vcpu(pmu))) {
-		kvm_mediated_pmu_refresh_event_filter(pmc);
-		return;
-	}
 
 	pmc_pause_counter(pmc);
 
