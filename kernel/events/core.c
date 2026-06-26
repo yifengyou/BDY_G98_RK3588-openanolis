@@ -2736,15 +2736,14 @@ static void task_ctx_sched_out(struct perf_event_context *ctx,
 }
 
 static void perf_event_sched_in(struct perf_cpu_context *cpuctx,
-				struct perf_event_context *ctx,
-				enum event_type_t event_type)
+				struct perf_event_context *ctx)
 {
-	ctx_sched_in(&cpuctx->ctx, EVENT_PINNED | event_type);
+	ctx_sched_in(&cpuctx->ctx, EVENT_PINNED);
 	if (ctx)
-		ctx_sched_in(ctx, EVENT_PINNED | event_type);
-	ctx_sched_in(&cpuctx->ctx, EVENT_FLEXIBLE | event_type);
+		 ctx_sched_in(ctx, EVENT_PINNED);
+	ctx_sched_in(&cpuctx->ctx, EVENT_FLEXIBLE);
 	if (ctx)
-		ctx_sched_in(ctx, EVENT_FLEXIBLE | event_type);
+		 ctx_sched_in(ctx, EVENT_FLEXIBLE);
 }
 
 /*
@@ -2800,7 +2799,7 @@ static void ctx_resched(struct perf_cpu_context *cpuctx,
 	else if (event_type & EVENT_PINNED)
 		ctx_sched_out(&cpuctx->ctx, EVENT_FLEXIBLE);
 
-	perf_event_sched_in(cpuctx, task_ctx, 0);
+	perf_event_sched_in(cpuctx, task_ctx);
 
 	perf_ctx_enable(&cpuctx->ctx, 0);
 	if (task_ctx)
@@ -4044,7 +4043,7 @@ static void perf_event_context_sched_in(struct task_struct *task)
 		ctx_sched_out(&cpuctx->ctx, EVENT_FLEXIBLE);
 	}
 
-	perf_event_sched_in(cpuctx, ctx, 0);
+	perf_event_sched_in(cpuctx, ctx);
 
 	perf_ctx_sched_task_cb(cpuctx->task_ctx, task, true);
 
