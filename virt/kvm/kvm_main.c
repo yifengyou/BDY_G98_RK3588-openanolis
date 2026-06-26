@@ -6619,18 +6619,12 @@ static struct perf_guest_info_callbacks kvm_guest_cbs = {
 	.handle_mediated_pmi	= NULL,
 };
 
-void __kvm_register_perf_callbacks(unsigned int (*pt_intr_handler)(void),
-				   void (*mediated_pmi_handler)(void))
-{
-	kvm_guest_cbs.handle_intel_pt_intr = pt_intr_handler;
-	kvm_guest_cbs.handle_mediated_pmi = mediated_pmi_handler;
-
-	perf_register_guest_info_callbacks(&kvm_guest_cbs);
-}
-
 void kvm_register_perf_callbacks(unsigned int (*pt_intr_handler)(void))
 {
-	__kvm_register_perf_callbacks(pt_intr_handler, NULL);
+	kvm_guest_cbs.handle_intel_pt_intr = pt_intr_handler;
+	kvm_guest_cbs.handle_mediated_pmi = NULL;
+
+	perf_register_guest_info_callbacks(&kvm_guest_cbs);
 }
 void kvm_unregister_perf_callbacks(void)
 {
