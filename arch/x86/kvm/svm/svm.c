@@ -257,8 +257,6 @@ module_param(intercept_smi, bool, 0444);
 bool vnmi = true;
 module_param(vnmi, bool, 0444);
 
-module_param(enable_mediated_pmu, bool, 0444);
-
 /*
  * Allow set guest PAT to WB in some non-passthrough
  * application scenarios to enhance performance.
