@@ -914,44 +914,11 @@ void kvm_pmu_destroy(struct kvm_vcpu *vcpu)
 	kvm_pmu_reset(vcpu);
 }
 
-static bool pmc_is_pmi_enabled(struct kvm_pmc *pmc)
-{
-	u8 fixed_ctr_ctrl;
-
-	if (pmc_is_gp(pmc))
-		return pmc->eventsel & ARCH_PERFMON_EVENTSEL_INT;
-
-	fixed_ctr_ctrl = fixed_ctrl_field(pmc_to_pmu(pmc)->fixed_ctr_ctrl,
-					  pmc->idx - INTEL_PMC_IDX_FIXED);
-	return fixed_ctr_ctrl & INTEL_FIXED_0_ENABLE_PMI;
-}
-
 static void kvm_pmu_incr_counter(struct kvm_pmc *pmc)
 {
-	struct kvm_vcpu *vcpu = pmc->vcpu;
-
-	/*
-	 * For perf-based PMUs, request reprogramming, which will consult
-	 * both emulated and hardware-generated events to detect overflow.
-	 */
-	if (!kvm_vcpu_has_mediated_pmu(vcpu)) {
-		pmc->prev_counter = pmc->counter;
-		pmc->counter = (pmc->counter + 1) & pmc_bitmask(pmc);
-		kvm_pmu_request_counter_reprogram(pmc);
-		return;
-	}
-
-	/*
-	 * For mediated PMUs, pmc->counter is updated when the vCPU's PMU is
-	 * put, and will be loaded into hardware when the PMU is loaded. Simply
-	 * increment the counter and signal overflow if it wraps to zero.
-	 */
+	pmc->prev_counter = pmc->counter;
 	pmc->counter = (pmc->counter + 1) & pmc_bitmask(pmc);
-	if (!pmc->counter) {
-		pmc_to_pmu(pmc)->global_status |= BIT_ULL(pmc->idx);
-		if (pmc_is_pmi_enabled(pmc))
-			kvm_make_request(KVM_REQ_PMI, vcpu);
-	}
+	kvm_pmu_request_counter_reprogram(pmc);
 }
 
 static inline bool eventsel_match_perf_hw_id(struct kvm_pmc *pmc,
