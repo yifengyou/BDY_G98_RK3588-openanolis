@@ -38,7 +38,6 @@ struct kvm_pmu_ops {
 	void (*cleanup)(struct kvm_vcpu *vcpu);
 
 	bool (*is_mediated_pmu_supported)(struct x86_pmu_capability *host_pmu);
-	void (*write_global_ctrl)(u64 global_ctrl);
 
 	const u64 EVENTSEL_EVENT;
 	const int MAX_NR_GP_COUNTERS;
@@ -174,7 +173,7 @@ static inline bool pmc_speculative_in_use(struct kvm_pmc *pmc)
 
 extern struct x86_pmu_capability kvm_pmu_cap;
 
-void kvm_init_pmu_capability(struct kvm_pmu_ops *pmu_ops);
+void kvm_init_pmu_capability(const struct kvm_pmu_ops *pmu_ops);
 
 static inline void kvm_pmu_request_counter_reprogram(struct kvm_pmc *pmc)
 {

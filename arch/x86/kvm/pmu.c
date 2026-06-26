@@ -29,7 +29,7 @@
 struct x86_pmu_capability __read_mostly kvm_pmu_cap;
 EXPORT_SYMBOL_GPL(kvm_pmu_cap);
 
-void kvm_init_pmu_capability(struct kvm_pmu_ops *pmu_ops)
+void kvm_init_pmu_capability(const struct kvm_pmu_ops *pmu_ops)
 {
 	bool is_intel = boot_cpu_data.x86_vendor == X86_VENDOR_INTEL;
 	int min_nr_gp_ctrs = pmu_ops->MIN_NR_GP_COUNTERS;
@@ -62,9 +62,6 @@ void kvm_init_pmu_capability(struct kvm_pmu_ops *pmu_ops)
 	if (!enable_pmu || !enable_mediated_pmu || !kvm_pmu_cap.mediated ||
 	    !pmu_ops->is_mediated_pmu_supported(&kvm_pmu_cap))
 		enable_mediated_pmu = false;
-
-	if (!enable_mediated_pmu)
-		pmu_ops->write_global_ctrl = NULL;
 
 	if (!enable_pmu) {
 		memset(&kvm_pmu_cap, 0, sizeof(kvm_pmu_cap));
@@ -721,9 +718,6 @@ int kvm_pmu_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 			diff = pmu->global_ctrl ^ data;
 			pmu->global_ctrl = data;
 			reprogram_counters(pmu, diff);
-
-			if (kvm_vcpu_has_mediated_pmu(vcpu))
-				static_call_cond(kvm_x86_pmu_write_global_ctrl)(data);
 		}
 		break;
 	case MSR_CORE_PERF_GLOBAL_OVF_CTRL:
@@ -821,11 +815,8 @@ void kvm_pmu_refresh(struct kvm_vcpu *vcpu)
 	 * in the global controls).  Emulate that behavior when refreshing the
 	 * PMU so that userspace doesn't need to manually set PERF_GLOBAL_CTRL.
 	 */
-	if (kvm_pmu_has_perf_global_ctrl(pmu) && pmu->nr_arch_gp_counters) {
+	if (kvm_pmu_has_perf_global_ctrl(pmu) && pmu->nr_arch_gp_counters)
 		pmu->global_ctrl = GENMASK_ULL(pmu->nr_arch_gp_counters - 1, 0);
-		if (kvm_vcpu_has_mediated_pmu(vcpu))
-			static_call_cond(kvm_x86_pmu_write_global_ctrl)(pmu->global_ctrl);
-	}
 }
 
 void kvm_pmu_init(struct kvm_vcpu *vcpu)
