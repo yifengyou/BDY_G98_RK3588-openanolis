@@ -32,8 +32,8 @@
 
 #define GUEST_PAT_WB_ATTR	0x0606060606060606
 
-#define MAX_DIRECT_ACCESS_MSRS	62
-#define MSRPM_OFFSETS	46
+#define MAX_DIRECT_ACCESS_MSRS	48
+#define MSRPM_OFFSETS	32
 extern u32 msrpm_offsets[MSRPM_OFFSETS] __read_mostly;
 extern bool npt_enabled;
 extern int nrips;
