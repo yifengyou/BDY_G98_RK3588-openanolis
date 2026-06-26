@@ -2208,9 +2208,6 @@ fastpath_t handle_fastpath_set_msr_irqoff(struct kvm_vcpu *vcpu)
 	fastpath_t ret;
 	bool handled;
 
-	if (!kvm_pmu_is_fastpath_emulation_allowed(vcpu))
-		return EXIT_FASTPATH_NONE;
-
 	kvm_vcpu_srcu_read_lock(vcpu);
 
 	switch (msr) {
