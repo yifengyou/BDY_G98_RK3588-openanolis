@@ -3543,3 +3543,26 @@ LUA_LSM_INT_DEFINE1(uring_cmd, struct io_uring_cmd *, ioucmd)
  * bdev_setintegrity
  * Default: 0
  */
+
+/*
+ * The backing_file hooks have no Lua implementation, but the generated
+ * lua_lsm_hooks[] table references a wrapper for every hook in
+ * lsm_hook_defs.h. Provide no-op wrappers to satisfy the linker; they are
+ * never registered because lua_lsm_hook_supported() returns false for them.
+ */
+int lua_lsm_backing_file_alloc(struct file *backing_file,
+			       const struct file *user_file)
+{
+	return 0;
+}
+
+void lua_lsm_backing_file_free(struct file *backing_file)
+{
+}
+
+int lua_lsm_mmap_backing_file(struct vm_area_struct *vma,
+			      struct file *backing_file,
+			      struct file *user_file)
+{
+	return 0;
+}

@@ -54,6 +54,9 @@ enum {
 static inline bool lua_lsm_hook_supported(unsigned int nr)
 {
 	switch (nr) {
+	case __LL_NR_backing_file_alloc:
+	case __LL_NR_backing_file_free:
+	case __LL_NR_mmap_backing_file:
 	case __LL_NR_getprocattr:
 	case __LL_NR_setprocattr:
 #ifdef CONFIG_SECURITY_NETWORK_XFRM
