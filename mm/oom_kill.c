@@ -495,6 +495,7 @@ static void dump_memcg_header(struct oom_control *oc, struct task_struct *p)
 {
 	dump_header(oc);
 	mem_cgroup_print_oom_meminfo(oc->memcg);
+	lru_gen_dump_oom(oc->memcg);
 	if (sysctl_oom_dump_tasks)
 		dump_tasks(oc);
 	if (p)

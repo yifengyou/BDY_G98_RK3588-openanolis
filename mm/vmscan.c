@@ -4492,6 +4492,53 @@ int lru_gen_print_memcg(struct seq_file *m, struct mem_cgroup *memcg)
 	return 0;
 }
 
+/*
+ * lru_gen_dump_oom - print per-memcg lru_gen generation stats.
+ * Called from dump_memcg_header() under oom_lock; no sleep, no GFP_KERNEL.
+ * Use printk(KERN_INFO) directly to avoid the "vmscan: " pr_fmt prefix.
+ */
+void lru_gen_dump_oom(struct mem_cgroup *memcg)
+{
+	int nid;
+
+	if (!lru_gen_enabled())
+		return;
+
+	for_each_node_state(nid, N_MEMORY) {
+		struct lruvec *lruvec = get_lruvec(memcg, nid);
+		struct lru_gen_folio *lrugen;
+		unsigned long seq;
+
+		if (!lruvec)
+			continue;
+
+		DEFINE_MAX_SEQ(lruvec);
+		DEFINE_MIN_SEQ(lruvec);
+		lrugen = &lruvec->lrugen;
+
+		printk(KERN_INFO "lru_gen: node=%d max_seq=%lu min_seq[anon]=%lu min_seq[file]=%lu\n",
+			nid, max_seq, min_seq[LRU_GEN_ANON], min_seq[LRU_GEN_FILE]);
+
+		for (seq = evictable_min_seq(min_seq, MAX_SWAPPINESS / 2);
+		     seq <= max_seq; seq++) {
+			int gen = lru_gen_from_seq(seq);
+			int zone;
+			unsigned long birth = READ_ONCE(lrugen->timestamps[gen]);
+			unsigned long anon = 0, file = 0;
+
+			for (zone = 0; zone < MAX_NR_ZONES; zone++) {
+				if (seq >= min_seq[LRU_GEN_ANON])
+					anon += max(READ_ONCE(lrugen->nr_pages[gen][LRU_GEN_ANON][zone]), 0L);
+				if (seq >= min_seq[LRU_GEN_FILE])
+					file += max(READ_ONCE(lrugen->nr_pages[gen][LRU_GEN_FILE][zone]), 0L);
+			}
+
+			printk(KERN_INFO "lru_gen:   seq=%-4lu age=%ums anon=%lu file=%lu\n",
+				seq, jiffies_to_msecs(jiffies - birth), anon, file);
+		}
+	}
+}
+
 
 static int run_aging(struct lruvec *lruvec, unsigned long seq,
 		     int swappiness, bool force_scan);

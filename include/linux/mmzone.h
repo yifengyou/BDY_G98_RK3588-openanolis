@@ -593,6 +593,7 @@ int lru_gen_print_memcg(struct seq_file *m, struct mem_cgroup *memcg);
 struct kernfs_open_file;
 ssize_t lru_gen_memcg_write(struct kernfs_open_file *of,
 			    char *buf, size_t nbytes, loff_t off);
+void lru_gen_dump_oom(struct mem_cgroup *memcg);
 
 #else /* !CONFIG_LRU_GEN */
 
@@ -646,6 +647,8 @@ static inline ssize_t lru_gen_memcg_write(struct kernfs_open_file *of,
 {
 	return 0;
 }
+
+static inline void lru_gen_dump_oom(struct mem_cgroup *memcg) {}
 
 #endif /* CONFIG_LRU_GEN */
 
