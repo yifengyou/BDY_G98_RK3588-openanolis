@@ -94,19 +94,19 @@ int init_uffd(void)
 
 	uffd = syscall(__NR_userfaultfd, O_CLOEXEC | O_NONBLOCK | UFFD_USER_MODE_ONLY);
 	if (uffd == -1)
-		return uffd;
+		ksft_exit_fail_msg("uffd syscall failed\n");
 
 	uffdio_api.api = UFFD_API;
 	uffdio_api.features = UFFD_FEATURE_WP_UNPOPULATED | UFFD_FEATURE_WP_ASYNC |
 			      UFFD_FEATURE_WP_HUGETLBFS_SHMEM;
 	if (ioctl(uffd, UFFDIO_API, &uffdio_api))
-		return -1;
+		ksft_exit_fail_msg("UFFDIO_API\n");
 
 	if (!(uffdio_api.api & UFFDIO_REGISTER_MODE_WP) ||
 	    !(uffdio_api.features & UFFD_FEATURE_WP_UNPOPULATED) ||
 	    !(uffdio_api.features & UFFD_FEATURE_WP_ASYNC) ||
 	    !(uffdio_api.features & UFFD_FEATURE_WP_HUGETLBFS_SHMEM))
-		return -1;
+		ksft_exit_fail_msg("UFFDIO_API error %llu\n", uffdio_api.api);
 
 	return 0;
 }
@@ -1479,10 +1479,6 @@ int main(void)
 	struct stat sbuf;
 
 	ksft_print_header();
-
-	if (init_uffd())
-		return ksft_exit_pass();
-
 	ksft_set_plan(115);
 
 	page_size = getpagesize();
@@ -1491,6 +1487,9 @@ int main(void)
 	pagemap_fd = open(PAGEMAP, O_RDONLY);
 	if (pagemap_fd < 0)
 		return -EINVAL;
+
+	if (init_uffd())
+		ksft_exit_fail_msg("uffd init failed\n");
 
 	/* 1. Sanity testing */
 	sanity_tests_sd();
