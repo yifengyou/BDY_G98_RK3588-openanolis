@@ -40,8 +40,7 @@
 			   UFFD_FEATURE_EXACT_ADDRESS |		\
 			   UFFD_FEATURE_WP_HUGETLBFS_SHMEM |	\
 			   UFFD_FEATURE_WP_UNPOPULATED |	\
-			   UFFD_FEATURE_POISON |		\
-			   UFFD_FEATURE_WP_ASYNC)
+			   UFFD_FEATURE_POISON)
 #define UFFD_API_IOCTLS				\
 	((__u64)1 << _UFFDIO_REGISTER |		\
 	 (__u64)1 << _UFFDIO_UNREGISTER |	\
@@ -217,11 +216,6 @@ struct uffdio_api {
 	 * (i.e. empty ptes).  This will be the default behavior for shmem
 	 * & hugetlbfs, so this flag only affects anonymous memory behavior
 	 * when userfault write-protection mode is registered.
-	 *
-	 * UFFD_FEATURE_WP_ASYNC indicates that userfaultfd write-protection
-	 * asynchronous mode is supported in which the write fault is
-	 * automatically resolved and write-protection is un-set.
-	 * It implies UFFD_FEATURE_WP_UNPOPULATED.
 	 */
 #define UFFD_FEATURE_PAGEFAULT_FLAG_WP		(1<<0)
 #define UFFD_FEATURE_EVENT_FORK			(1<<1)
@@ -238,7 +232,6 @@ struct uffdio_api {
 #define UFFD_FEATURE_WP_HUGETLBFS_SHMEM		(1<<12)
 #define UFFD_FEATURE_WP_UNPOPULATED		(1<<13)
 #define UFFD_FEATURE_POISON			(1<<14)
-#define UFFD_FEATURE_WP_ASYNC			(1<<15)
 	__u64 features;
 
 	__u64 ioctls;
