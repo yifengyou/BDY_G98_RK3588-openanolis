@@ -160,12 +160,13 @@ static inline long sys_getcpu(unsigned * cpu, unsigned * node,
 }
 
 static jmp_buf jmpbuf;
-static volatile unsigned long segv_err;
+static volatile unsigned long segv_err, segv_trapno;
 
 static void sigsegv(int sig, siginfo_t *info, void *ctx_void)
 {
 	ucontext_t *ctx = (ucontext_t *)ctx_void;
 
+	segv_trapno = ctx->uc_mcontext.gregs[REG_TRAPNO];
 	segv_err =  ctx->uc_mcontext.gregs[REG_ERR];
 	siglongjmp(jmpbuf, 1);
 }
@@ -400,8 +401,8 @@ static int test_vsys_r(void)
 	} else if (can_read) {
 		printf("[OK]\tWe have read access\n");
 	} else {
-		printf("[OK]\tWe do not have read access: #PF(0x%lx)\n",
-		       segv_err);
+		printf("[OK]\tWe do not have read access (trap=%ld, error=0x%lx)\n",
+			segv_trapno, segv_err);
 	}
 #endif
 
@@ -416,7 +417,7 @@ static int test_vsys_x(void)
 		return 0;
 	}
 
-	printf("[RUN]\tMake sure that vsyscalls really page fault\n");
+	printf("[RUN]\tMake sure that vsyscalls really cause a fault\n");
 
 	bool can_exec;
 	if (sigsetjmp(jmpbuf, 1) == 0) {
@@ -427,14 +428,15 @@ static int test_vsys_x(void)
 	}
 
 	if (can_exec) {
-		printf("[FAIL]\tExecuting the vsyscall did not page fault\n");
+		printf("[FAIL]\tExecuting the vsyscall did not fault\n");
 		return 1;
-	} else if (segv_err & (1 << 4)) { /* INSTR */
-		printf("[OK]\tExecuting the vsyscall page failed: #PF(0x%lx)\n",
-		       segv_err);
+	/* #GP or #PF (with X86_PF_INSTR) */
+	} else if ((segv_trapno == 13) || ((segv_trapno == 14) && (segv_err & (1 << 4)))) {
+		printf("[OK]\tExecuting the vsyscall page failed (trap=%ld, error=0x%lx)\n",
+			segv_trapno, segv_err);
 	} else {
-		printf("[FAIL]\tExecution failed with the wrong error: #PF(0x%lx)\n",
-		       segv_err);
+		printf("[FAIL]\tExecution failed with the wrong error (trap=%ld, error=0x%lx)\n",
+			segv_trapno, segv_err);
 		return 1;
 	}
 #endif
