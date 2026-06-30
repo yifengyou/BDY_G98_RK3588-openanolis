@@ -461,12 +461,12 @@ const struct address_space_operations def_blk_aops = {
 #else /* CONFIG_BUFFER_HEAD */
 static int blkdev_read_folio(struct file *file, struct folio *folio)
 {
-	return iomap_read_folio(folio, &blkdev_iomap_ops);
+	return iomap_read_folio(folio, &blkdev_iomap_ops, NULL);
 }
 
 static void blkdev_readahead(struct readahead_control *rac)
 {
-	iomap_readahead(rac, &blkdev_iomap_ops);
+	iomap_readahead(rac, &blkdev_iomap_ops, NULL);
 }
 
 static int blkdev_map_blocks(struct iomap_writepage_ctx *wpc,
