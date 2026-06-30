@@ -204,3 +204,4 @@ obj-$(CONFIG_DRM_SPRD) += sprd/
 obj-$(CONFIG_DRM_LOONGSON) += loongson/
 obj-$(CONFIG_DRM_PHYTIUM) += phytium/
 obj-$(CONFIG_DRM_YHGCH)  += yhgch/
+obj-$(CONFIG_DRM_ENGIANT) += engiant/
