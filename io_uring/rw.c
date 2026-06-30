@@ -781,6 +781,19 @@ static int __io_read(struct io_kiocb *req, unsigned int issue_flags)
 		return ret;
 	}
 
+	/*
+	 * Kernel-registered bvecs (is_kbuf) carry kernel addresses, not
+	 * __user pointers. If the file has no ->read_iter, io_iter_do_read()
+	 * falls back to loop_rw_iter() -> ->read(), which treats the iter
+	 * payload as __user and would EFAULT on a kernel address. Reject
+	 * such requests early.
+	 */
+	if (unlikely(req->imu && req->imu->is_kbuf &&
+		     !req->file->f_op->read_iter)) {
+		kfree(iovec);
+		return -EFAULT;
+	}
+
 	ret = io_iter_do_read(rw, &s->iter);
 
 	/*
@@ -967,6 +980,13 @@ int io_write(struct io_kiocb *req, unsigned int issue_flags)
 
 	if (likely(req->file->f_op->write_iter))
 		ret2 = call_write_iter(req->file, kiocb, &s->iter);
+	else if (unlikely(req->imu && req->imu->is_kbuf))
+		/*
+		 * Kernel-registered bvecs carry kernel addresses, not __user
+		 * pointers. loop_rw_iter() -> ->write() would treat the iter
+		 * payload as __user and EFAULT, so refuse the fallback path.
+		 */
+		ret2 = -EFAULT;
 	else if (req->file->f_op->write)
 		ret2 = loop_rw_iter(WRITE, rw, &s->iter);
 	else
