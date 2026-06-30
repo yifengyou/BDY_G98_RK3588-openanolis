@@ -552,8 +552,18 @@ enum objext_flags {
 	 * MEMCG_DATA_OBJEXTS.
 	 */
 	OBJEXTS_ALLOC_FAIL = __OBJEXTS_ALLOC_FAIL,
+	/*
+	 * OBJEXTS_ALLOC_FAIL has been changed to reuse __OBJEXTS_ALLOC_FAIL
+	 * rather than __FIRST_OBJEXT_FLAG, so no extra bit has been used
+	 * here, meanwhile we don't have to reserve any bit for further usage
+	 * (see upstream kmalloc_nolock changes). The real last actual flag
+	 * should be __FIRST_OBJEXT_FLAG but not __FIRST_OBJEXT_FLAG << 1.
+	 * XXX: however if you are backporting kmalloc_nolock, please be
+	 * aware of the conflict between bits usage and lsb of obj_exts
+	 * address. You must fix it then.
+	 */
 	/* the next bit after the last actual flag */
-	__NR_OBJEXTS_FLAGS  = (__FIRST_OBJEXT_FLAG << 1),
+	__NR_OBJEXTS_FLAGS  = __FIRST_OBJEXT_FLAG,
 };
 
 #define OBJEXTS_FLAGS_MASK (__NR_OBJEXTS_FLAGS - 1)
