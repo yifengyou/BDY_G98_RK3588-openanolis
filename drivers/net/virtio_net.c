@@ -282,7 +282,7 @@ struct virtnet_rq_dma {
 	u32 ref;
 	u16 len;
 	u16 need_sync;
-};
+} __aligned(L1_CACHE_BYTES);
 
 /* Internal representation of a send virtqueue */
 struct send_queue {
