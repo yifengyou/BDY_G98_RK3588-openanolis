@@ -67,6 +67,8 @@ static inline void ksm_fork(struct mm_struct *mm, struct mm_struct *oldmm)
 		__ksm_enter(mm);
 	}
 
+	if (test_bit(MMF_VM_MERGE_ANY, &oldmm->flags))
+		set_bit(MMF_VM_MERGE_ANY, &mm->flags);
 }
 
 static inline void ksm_exit(struct mm_struct *mm)
