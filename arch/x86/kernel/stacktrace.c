@@ -12,8 +12,16 @@
 #include <asm/stacktrace.h>
 #include <asm/unwind.h>
 
-void arch_stack_walk(stack_trace_consume_fn consume_entry, void *cookie,
-		     struct task_struct *task, struct pt_regs *regs)
+/*
+ * arch_stack_walk() and the functions it calls (__unwind_start(),
+ * unwind_next_frame(), unwind_get_return_address(),
+ * unwind_get_return_address_ptr()) must not be instrumented by ftrace,
+ * as they are invoked from within ftrace callbacks (e.g.,
+ * function_stack_trace_call). Tracing these functions would cause
+ * recursive ftrace reentrance, leading to a hard lockup.
+ */
+void notrace arch_stack_walk(stack_trace_consume_fn consume_entry, void *cookie,
+			     struct task_struct *task, struct pt_regs *regs)
 {
 	struct unwind_state state;
 	unsigned long addr;

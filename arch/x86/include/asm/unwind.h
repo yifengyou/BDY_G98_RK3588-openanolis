@@ -39,11 +39,11 @@ struct unwind_state {
 #endif
 };
 
-void __unwind_start(struct unwind_state *state, struct task_struct *task,
-		    struct pt_regs *regs, unsigned long *first_frame);
-bool unwind_next_frame(struct unwind_state *state);
-unsigned long unwind_get_return_address(struct unwind_state *state);
-unsigned long *unwind_get_return_address_ptr(struct unwind_state *state);
+void notrace __unwind_start(struct unwind_state *state, struct task_struct *task,
+			    struct pt_regs *regs, unsigned long *first_frame);
+bool notrace unwind_next_frame(struct unwind_state *state);
+unsigned long notrace unwind_get_return_address(struct unwind_state *state);
+unsigned long *notrace unwind_get_return_address_ptr(struct unwind_state *state);
 
 static inline bool unwind_done(struct unwind_state *state)
 {

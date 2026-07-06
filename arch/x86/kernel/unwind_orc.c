@@ -361,7 +361,7 @@ void __init unwind_init(void)
 	orc_init = true;
 }
 
-unsigned long unwind_get_return_address(struct unwind_state *state)
+unsigned long notrace unwind_get_return_address(struct unwind_state *state)
 {
 	if (unwind_done(state))
 		return 0;
@@ -370,7 +370,7 @@ unsigned long unwind_get_return_address(struct unwind_state *state)
 }
 EXPORT_SYMBOL_GPL(unwind_get_return_address);
 
-unsigned long *unwind_get_return_address_ptr(struct unwind_state *state)
+unsigned long *notrace unwind_get_return_address_ptr(struct unwind_state *state)
 {
 	if (unwind_done(state))
 		return NULL;
@@ -465,7 +465,7 @@ static bool get_reg(struct unwind_state *state, unsigned int reg_off,
 	return false;
 }
 
-bool unwind_next_frame(struct unwind_state *state)
+bool notrace unwind_next_frame(struct unwind_state *state)
 {
 	unsigned long ip_p, sp, tmp, orig_ip = state->ip, prev_sp = state->sp;
 	enum stack_type prev_type = state->stack_info.type;
@@ -682,8 +682,8 @@ the_end:
 }
 EXPORT_SYMBOL_GPL(unwind_next_frame);
 
-void __unwind_start(struct unwind_state *state, struct task_struct *task,
-		    struct pt_regs *regs, unsigned long *first_frame)
+void notrace __unwind_start(struct unwind_state *state, struct task_struct *task,
+			    struct pt_regs *regs, unsigned long *first_frame)
 {
 	memset(state, 0, sizeof(*state));
 	state->task = task;
