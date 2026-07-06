@@ -8874,6 +8874,11 @@ static struct cftype memory_files[] = {
 		.write = memory_oom_group_write,
 	},
 	{
+		.name = "oom_control",
+		.seq_show = mem_cgroup_oom_control_read,
+		.write_u64 = mem_cgroup_oom_control_write,
+	},
+	{
 		.name = "reclaim",
 		.flags = CFTYPE_NS_DELEGATABLE,
 		.write = memory_reclaim,
