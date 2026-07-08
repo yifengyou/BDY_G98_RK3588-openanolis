@@ -606,8 +606,15 @@ run_state_test()
 		#
 		# Check to see if effective cpu list changes
 		#
-		pause 0.05
 		NEWLIST=$(cat cpuset.cpus.effective)
+		RETRY=0
+		while [[ $NEWLIST != $CPULIST && $RETRY -lt 8 ]]
+		do
+			# Wait a bit longer & recheck a few times
+			pause 0.02
+			((RETRY++))
+			NEWLIST=$(cat cpuset.cpus.effective)
+		done
 		[[ $NEWLIST != $CPULIST ]] && {
 			echo "Effective cpus changed to $NEWLIST after test $I!"
 			exit 1
