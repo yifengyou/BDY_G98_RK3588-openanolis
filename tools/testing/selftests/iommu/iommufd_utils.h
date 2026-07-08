@@ -19,7 +19,9 @@
 
 /* Imported from include/asm-generic/bitops/generic-non-atomic.h */
 #define BITS_PER_BYTE 8
+#ifndef BITS_PER_LONG
 #define BITS_PER_LONG __BITS_PER_LONG
+#endif
 #define BIT_MASK(nr) (1UL << ((nr) % __BITS_PER_LONG))
 #define BIT_WORD(nr) ((nr) / __BITS_PER_LONG)
 
