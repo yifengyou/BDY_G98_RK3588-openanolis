@@ -2165,9 +2165,11 @@ static int team_header_create(struct sk_buff *skb, struct net_device *team_dev,
 	return ret;
 }
 
-static int team_header_parse(const struct sk_buff *skb, unsigned char *haddr)
+static int team_header_parse(const struct sk_buff *skb,
+			     const struct net_device *team_dev,
+			     unsigned char *haddr)
 {
-	struct team *team = netdev_priv(skb->dev);
+	struct team *team = netdev_priv(team_dev);
 	const struct header_ops *port_ops;
 	struct team_port *port;
 	int ret = 0;
@@ -2177,7 +2179,7 @@ static int team_header_parse(const struct sk_buff *skb, unsigned char *haddr)
 	if (port) {
 		port_ops = READ_ONCE(port->dev->header_ops);
 		if (port_ops && port_ops->parse)
-			ret = port_ops->parse(skb, haddr);
+			ret = port_ops->parse(skb, port->dev, haddr);
 	}
 	rcu_read_unlock();
 	return ret;
