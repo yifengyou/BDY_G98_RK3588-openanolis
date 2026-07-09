@@ -213,8 +213,6 @@ SYM_CODE_START_LOCAL(__kvm_hyp_init_cpu)
 
 	bl	__kvm_init_el2_state
 
-	__init_el2_nvhe_prepare_eret
-
 	/* Enable MMU, set vectors and stack. */
 	mov	x0, x28
 	bl	___kvm_hyp_init			// Clobbers x0..x2
@@ -250,7 +248,7 @@ SYM_CODE_START(__kvm_handle_stub_hvc)
 
 	/*
 	 * Set the HVC_RESET_VECTORS return code before entering the common
-	 * path so that we do not clobber x0-x2 in case we are coming via
+	 * path so we do not clobber x0-x2 in case we are coming via
 	 * HVC_SOFT_RESTART.
 	 */
 	mov	x0, xzr
