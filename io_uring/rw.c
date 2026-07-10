@@ -262,11 +262,6 @@ static bool __io_complete_rw_common(struct io_kiocb *req, long res)
 	if (unlikely(res != req->cqe.res)) {
 		if ((res == -EAGAIN || res == -EOPNOTSUPP) &&
 		    io_rw_should_reissue(req)) {
-			/*
-			 * Reissue will start accounting again, finish the
-			 * current cycle.
-			 */
-			io_req_io_end(req);
 			req->flags |= REQ_F_REISSUE | REQ_F_PARTIAL_IO;
 			return true;
 		}
@@ -295,6 +290,23 @@ void io_req_rw_complete(struct io_kiocb *req, struct io_tw_state *ts)
 	struct io_rw *rw = io_kiocb_to_cmd(req, struct io_rw);
 	struct kiocb *kiocb = &rw->kiocb;
 
+	/*
+	 * The block layer async completion (io_complete_rw()) may decide to
+	 * reissue via -EAGAIN, but it can run in a context where re-importing
+	 * the iovec isn't safe. It defers that here, to task context, where
+	 * io_resubmit_prep() and io-wq punting are safe.
+	 */
+	if (req->flags & REQ_F_REISSUE) {
+		req->flags &= ~REQ_F_REISSUE;
+		if (io_resubmit_prep(req)) {
+			req->flags |= REQ_F_FORCE_ASYNC;
+			io_req_task_queue(req);
+		} else {
+			io_req_task_queue_fail(req, io_fixup_rw_res(req, req->cqe.res));
+		}
+		return;
+	}
+
 	if ((kiocb->ki_flags & IOCB_DIO_CALLER_COMP) && kiocb->dio_complete) {
 		long res = kiocb->dio_complete(rw->kiocb.private);
 
@@ -317,9 +329,8 @@ static void io_complete_rw(struct kiocb *kiocb, long res)
 	struct io_kiocb *req = cmd_to_io_kiocb(rw);
 
 	if (!kiocb->dio_complete || !(kiocb->ki_flags & IOCB_DIO_CALLER_COMP)) {
-		if (__io_complete_rw_common(req, res))
-			return;
-		io_req_set_res(req, io_fixup_rw_res(req, res), 0);
+		if (!__io_complete_rw_common(req, res))
+			io_req_set_res(req, io_fixup_rw_res(req, res), 0);
 	}
 	req->io_task_work.func = io_req_rw_complete;
 	__io_req_task_work_add(req, IOU_F_TWQ_LAZY_WAKE);
