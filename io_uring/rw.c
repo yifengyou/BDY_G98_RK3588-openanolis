@@ -103,6 +103,13 @@ int io_prep_rw(struct io_kiocb *req, const struct io_uring_sqe *sqe)
 		index = array_index_nospec(req->buf_index, ctx->nr_user_bufs);
 		req->imu = ctx->user_bufs[index];
 		io_req_set_rsrc_node(req, ctx, 0);
+	} else {
+		/*
+		 * req->imu shares a union with kbuf/buf_list. It's only a
+		 * valid io_mapped_ubuf for fixed-buffer ops, so clear it for
+		 * everything else to avoid dereferencing a stale/aliased value.
+		 */
+		req->imu = NULL;
 	}
 
 	ioprio = READ_ONCE(sqe->ioprio);
@@ -788,7 +795,8 @@ static int __io_read(struct io_kiocb *req, unsigned int issue_flags)
 	 * payload as __user and would EFAULT on a kernel address. Reject
 	 * such requests early.
 	 */
-	if (unlikely(req->imu && req->imu->is_kbuf &&
+	if (unlikely(req->opcode == IORING_OP_READ_FIXED &&
+		     req->imu && req->imu->is_kbuf &&
 		     !req->file->f_op->read_iter)) {
 		kfree(iovec);
 		return -EFAULT;
@@ -980,7 +988,8 @@ int io_write(struct io_kiocb *req, unsigned int issue_flags)
 
 	if (likely(req->file->f_op->write_iter))
 		ret2 = call_write_iter(req->file, kiocb, &s->iter);
-	else if (unlikely(req->imu && req->imu->is_kbuf))
+	else if (unlikely(req->opcode == IORING_OP_WRITE_FIXED &&
+			  req->imu && req->imu->is_kbuf))
 		/*
 		 * Kernel-registered bvecs carry kernel addresses, not __user
 		 * pointers. loop_rw_iter() -> ->write() would treat the iter
