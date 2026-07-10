@@ -189,7 +189,7 @@ static int arch_pci_probe_root_resources(struct acpi_pci_root_info *info)
 					res->end |= LOONGSON_LIO_BASE;
 				}
 				arch_pci_root_remap_iospace(&device->fwnode,
-						entry);
+								entry);
 			}
 			if (entry->res->flags & IORESOURCE_DISABLED)
 				resource_list_destroy_entry(entry);
@@ -211,6 +211,8 @@ static int acpi_prepare_root_resources(struct acpi_pci_root_info *ci)
 	unsigned long long pci_h = 0;
 	struct resource_entry *entry, *tmp;
 	struct acpi_device *device = ci->bridge;
+
+	acpi_remove_early_pio();
 
 	status = arch_pci_probe_root_resources(ci);
 	if (status > 0) {
