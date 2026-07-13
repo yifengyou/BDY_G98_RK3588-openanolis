@@ -1700,4 +1700,7 @@ u32 kvm_pv_cpu_freq_get(struct kvm_vcpu *vcpu);
 	(system_supports_fpmr() &&			\
 	 kvm_has_feat((k), ID_AA64PFR2_EL1, FPMR, IMP))
 
+#define kvm_has_ras(k)					\
+	(kvm_has_feat((k), ID_AA64PFR0_EL1, RAS, IMP))
+
 #endif /* __ARM64_KVM_HOST_H__ */
