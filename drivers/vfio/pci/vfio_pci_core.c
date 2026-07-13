@@ -486,6 +486,40 @@ static int vfio_pci_core_runtime_resume(struct device *dev)
 #endif /* CONFIG_PM */
 
 /*
+ * Eager-request BAR resources, and iomap them.  Soft failures are
+ * allowed, and consumers must check the barmap before use in order to
+ * give compatible user-visible behaviour with the previous on-demand
+ * allocation method.
+ */
+static void vfio_pci_core_map_bars(struct vfio_pci_core_device *vdev)
+{
+	struct pci_dev *pdev = vdev->pdev;
+	int i;
+
+	for (i = 0; i < PCI_STD_NUM_BARS; i++) {
+		int bar = i + PCI_STD_RESOURCES;
+
+		vdev->barmap[bar] = IOMEM_ERR_PTR(-ENODEV);
+
+		if (!pci_resource_len(pdev, i))
+			continue;
+
+		if (pci_request_selected_regions(pdev, 1 << bar, "vfio")) {
+			pci_dbg(pdev, "Failed to reserve region %d\n", bar);
+			vdev->barmap[bar] = IOMEM_ERR_PTR(-EBUSY);
+			continue;
+		}
+
+		vdev->barmap[bar] = pci_iomap(pdev, bar, 0);
+		if (!vdev->barmap[bar]) {
+			pci_dbg(pdev, "Failed to iomap region %d\n", bar);
+			pci_release_selected_regions(pdev, 1 << bar);
+			vdev->barmap[bar] = IOMEM_ERR_PTR(-ENOMEM);
+		}
+	}
+}
+
+/*
  * The pci-driver core runtime PM routines always save the device state
  * before going into suspended state. If the device is going into low power
  * state with only with runtime PM ops, then no explicit handling is needed
@@ -594,6 +628,9 @@ int vfio_pci_core_enable(struct vfio_pci_core_device *vdev)
 		vdev->has_vga = true;
 
 	vdev->liveupdate_incoming_state = NULL;
+
+	vfio_pci_core_map_bars(vdev);
+
 	return 0;
 
 out_free_zdev:
@@ -706,7 +743,7 @@ void vfio_pci_core_disable(struct vfio_pci_core_device *vdev)
 
 	for (i = 0; i < PCI_STD_NUM_BARS; i++) {
 		bar = i + PCI_STD_RESOURCES;
-		if (!vdev->barmap[bar])
+		if (IS_ERR_OR_NULL(vdev->barmap[bar]))
 			continue;
 		pci_iounmap(pdev, vdev->barmap[bar]);
 		pci_release_selected_regions(pdev, 1 << bar);
