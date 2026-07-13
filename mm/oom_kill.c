@@ -58,6 +58,7 @@
 static int sysctl_panic_on_oom;
 static int sysctl_oom_kill_allocating_task;
 static int sysctl_oom_dump_tasks = 1;
+static unsigned long sysctl_oom_kill_min_kbytes;
 
 /*
  * Serializes oom killer invocations (out_of_memory()) from all contexts to
@@ -232,6 +233,18 @@ long oom_badness(struct task_struct *p, unsigned long totalpages)
 	 */
 	points = get_mm_rss(p->mm) + get_mm_counter(p->mm, MM_SWAPENTS) +
 		mm_pgtables_bytes(p->mm) / PAGE_SIZE;
+
+	/*
+	 * Skip tasks whose RSS + swap + pagetables is below
+	 * oom_kill_min_kbytes, so the OOM killer avoids killing
+	 * small processes that free little memory.
+	 */
+	if (sysctl_oom_kill_min_kbytes &&
+	    (points << (PAGE_SHIFT - 10)) < sysctl_oom_kill_min_kbytes) {
+		task_unlock(p);
+		return LONG_MIN;
+	}
+
 	task_unlock(p);
 
 	/* Normalize to oom_score_adj units */
@@ -754,6 +767,14 @@ static struct ctl_table vm_oom_kill_table[] = {
 		.maxlen		= sizeof(sysctl_oom_dump_tasks),
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec,
+	},
+	{
+		.procname	= "oom_kill_min_kbytes",
+		.data		= &sysctl_oom_kill_min_kbytes,
+		.maxlen		= sizeof(sysctl_oom_kill_min_kbytes),
+		.mode		= 0644,
+		.proc_handler	= proc_doulongvec_minmax,
+		.extra1		= SYSCTL_LONG_ZERO,
 	},
 	{}
 };
