@@ -1622,6 +1622,24 @@ void kvm_set_vm_id_reg(struct kvm *kvm, u32 reg, u64 val);
 	(kvm_cmp_feat(kvm, id, fld, >=, min) &&				\
 	kvm_cmp_feat(kvm, id, fld, <=, max))
 
+/* Check for a given level of PAuth support */
+#define kvm_has_pauth(k, l)						\
+	({								\
+		bool pa, pi, pa3;					\
+									\
+		pa  = kvm_has_feat((k), ID_AA64ISAR1_EL1, APA, l);	\
+		pa &= kvm_has_feat((k), ID_AA64ISAR1_EL1, GPA, IMP);	\
+		pi  = kvm_has_feat((k), ID_AA64ISAR1_EL1, API, l);	\
+		pi &= kvm_has_feat((k), ID_AA64ISAR1_EL1, GPI, IMP);	\
+		pa3  = kvm_has_feat((k), ID_AA64ISAR2_EL1, APA3, l);	\
+		pa3 &= kvm_has_feat((k), ID_AA64ISAR2_EL1, GPA3, IMP);	\
+									\
+		(pa + pi + pa3) == 1;					\
+	})
+
+#define kvm_has_tcr2(k)				\
+	(kvm_has_feat((k), ID_AA64MMFR3_EL1, TCRX, IMP))
+
 extern bool kvm_ncsnp_support;
 extern bool kvm_dvmbm_support;
 
@@ -1685,21 +1703,6 @@ static inline void host_kvm_vcpu_pmu_resync_el0(void)
 #endif
 
 u32 kvm_pv_cpu_freq_get(struct kvm_vcpu *vcpu);
-
-/* Check for a given level of PAuth support */
-#define kvm_has_pauth(k, l)						\
-	({								\
-		bool pa, pi, pa3;					\
-									\
-		pa  = kvm_has_feat((k), ID_AA64ISAR1_EL1, APA, l);	\
-		pa &= kvm_has_feat((k), ID_AA64ISAR1_EL1, GPA, IMP);	\
-		pi  = kvm_has_feat((k), ID_AA64ISAR1_EL1, API, l);	\
-		pi &= kvm_has_feat((k), ID_AA64ISAR1_EL1, GPI, IMP);	\
-		pa3  = kvm_has_feat((k), ID_AA64ISAR2_EL1, APA3, l);	\
-		pa3 &= kvm_has_feat((k), ID_AA64ISAR2_EL1, GPA3, IMP);	\
-									\
-		(pa + pi + pa3) == 1;					\
-	})
 
 #define kvm_has_fpmr(k)					\
 	(system_supports_fpmr() &&			\
