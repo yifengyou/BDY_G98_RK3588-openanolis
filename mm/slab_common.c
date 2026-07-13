@@ -756,7 +756,18 @@ static inline unsigned int size_index_elem(unsigned int bytes)
  */
 struct kmem_cache *kmalloc_slab(size_t size, gfp_t flags, unsigned long caller)
 {
+	enum kmalloc_cache_type type = kmalloc_type(flags, caller);
 	unsigned int index;
+
+	/*
+	 * slabobj_ext arrays (allocated with __GFP_NO_OBJ_EXT) must be
+	 * served from KMALLOC_NO_OBJ_EXT caches, which can never have
+	 * obj_exts arrays themselves. Otherwise slabs of normal kmalloc
+	 * caches could host each other's obj_exts arrays and form cycles,
+	 * leading to unbounded recursion in the free path.
+	 */
+	if (IS_ENABLED(CONFIG_SLAB_OBJ_EXT) && (flags & __GFP_NO_OBJ_EXT))
+		type = KMALLOC_NO_OBJ_EXT;
 
 	if (size <= 192) {
 		if (!size)
@@ -769,7 +780,7 @@ struct kmem_cache *kmalloc_slab(size_t size, gfp_t flags, unsigned long caller)
 		index = fls(size - 1);
 	}
 
-	return kmalloc_caches[kmalloc_type(flags, caller)][index];
+	return kmalloc_caches[type][index];
 }
 
 struct kmem_cache *oot_kmalloc_slab(int i, size_t size, gfp_t flags,
@@ -832,6 +843,12 @@ EXPORT_SYMBOL(kmalloc_size_roundup);
 #define KMALLOC_RCL_NAME(sz)
 #endif
 
+#ifdef CONFIG_SLAB_OBJ_EXT
+#define KMALLOC_NO_OBJ_EXT_NAME(sz)	.name[KMALLOC_NO_OBJ_EXT] = "kmalloc-no-objext-" #sz,
+#else
+#define KMALLOC_NO_OBJ_EXT_NAME(sz)
+#endif
+
 #ifdef CONFIG_RANDOM_KMALLOC_CACHES
 #define __KMALLOC_RANDOM_CONCAT(a, b) a ## b
 #define KMALLOC_RANDOM_NAME(N, sz) __KMALLOC_RANDOM_CONCAT(KMA_RAND_, N)(sz)
@@ -861,6 +878,7 @@ EXPORT_SYMBOL(kmalloc_size_roundup);
 	KMALLOC_CGROUP_NAME(__short_size)			\
 	KMALLOC_DMA_NAME(__short_size)				\
 	KMALLOC_RANDOM_NAME(RANDOM_KMALLOC_CACHES_NR, __short_size)	\
+	KMALLOC_NO_OBJ_EXT_NAME(__short_size)			\
 	.size = __size,						\
 }
 
@@ -1006,6 +1024,26 @@ static unsigned int __kmalloc_minalign(void)
 	return max(minalign, arch_slab_minalign());
 }
 
+/*
+ * Return true if KMALLOC_NORMAL caches may need obj_exts arrays.
+ *
+ * Memory allocation profiling requires obj_exts for all caches.
+ * Memcg usually doesn't need them for normal kmalloc caches, but kmalloc
+ * types with a priority higher than KMALLOC_CGROUP can be aliased with
+ * KMALLOC_NORMAL.
+ */
+static bool __init need_kmalloc_no_objext(void)
+{
+	if (IS_ENABLED(CONFIG_MEM_ALLOC_PROFILING))
+		return true;
+
+	if (!mem_cgroup_kmem_disabled() &&
+			(KMALLOC_NORMAL == KMALLOC_RECLAIM))
+		return true;
+
+	return false;
+}
+
 void __init
 new_kmalloc_cache(int idx, enum kmalloc_cache_type type, slab_flags_t flags)
 {
@@ -1021,6 +1059,12 @@ new_kmalloc_cache(int idx, enum kmalloc_cache_type type, slab_flags_t flags)
 			return;
 		}
 		flags |= SLAB_ACCOUNT;
+	} else if (IS_ENABLED(CONFIG_SLAB_OBJ_EXT) && (type == KMALLOC_NO_OBJ_EXT)) {
+		if (!need_kmalloc_no_objext()) {
+			kmalloc_caches[type][idx] = kmalloc_caches[KMALLOC_NORMAL][idx];
+			return;
+		}
+		flags |= SLAB_NO_OBJ_EXT | SLAB_NO_MERGE;
 	} else if (IS_ENABLED(CONFIG_ZONE_DMA) && (type == KMALLOC_DMA)) {
 		flags |= SLAB_CACHE_DMA;
 	}
