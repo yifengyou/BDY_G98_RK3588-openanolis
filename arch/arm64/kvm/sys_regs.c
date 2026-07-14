@@ -5053,14 +5053,14 @@ void kvm_calculate_traps(struct kvm_vcpu *vcpu)
 	if (test_bit(KVM_ARCH_FLAG_FGU_INITIALIZED, &kvm->arch.flags))
 		goto out;
 
-	kvm->arch.fgu[HFGxTR_GROUP] = (HFGxTR_EL2_nAMAIR2_EL1		|
-				       HFGxTR_EL2_nMAIR2_EL1		|
-				       HFGxTR_EL2_nS2POR_EL1		|
-				       HFGxTR_EL2_nPOR_EL1		|
-				       HFGxTR_EL2_nPOR_EL0		|
-				       HFGxTR_EL2_nACCDATA_EL1		|
-				       HFGxTR_EL2_nSMPRI_EL1_MASK	|
-				       HFGxTR_EL2_nTPIDR2_EL0_MASK);
+	kvm->arch.fgu[HFGRTR_GROUP] = (HFGRTR_EL2_nAMAIR2_EL1		|
+				       HFGRTR_EL2_nMAIR2_EL1		|
+				       HFGRTR_EL2_nS2POR_EL1		|
+				       HFGRTR_EL2_nPOR_EL1		|
+				       HFGRTR_EL2_nPOR_EL0		|
+				       HFGRTR_EL2_nACCDATA_EL1		|
+				       HFGRTR_EL2_nSMPRI_EL1_MASK	|
+				       HFGRTR_EL2_nTPIDR2_EL0_MASK);
 
 	if (!kvm_has_feat(kvm, ID_AA64ISAR0_EL1, TLB, OS))
 		kvm->arch.fgu[HFGITR_GROUP] |= (HFGITR_EL2_TLBIRVAALE1OS|
@@ -5096,8 +5096,8 @@ void kvm_calculate_traps(struct kvm_vcpu *vcpu)
 						HFGITR_EL2_ATS1E1WP);
 
 	if (!kvm_has_feat(kvm, ID_AA64MMFR3_EL1, S1PIE, IMP))
-		kvm->arch.fgu[HFGxTR_GROUP] |= (HFGxTR_EL2_nPIRE0_EL1 |
-						HFGxTR_EL2_nPIR_EL1);
+		kvm->arch.fgu[HFGRTR_GROUP] |= (HFGRTR_EL2_nPIRE0_EL1 |
+						HFGRTR_EL2_nPIR_EL1);
 
 	if (!kvm_has_feat(kvm, ID_AA64PFR0_EL1, AMU, IMP))
 		kvm->arch.fgu[HAFGRTR_GROUP] |= ~(HAFGRTR_EL2_RES0 |
