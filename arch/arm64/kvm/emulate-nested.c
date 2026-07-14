@@ -88,6 +88,7 @@ enum cgt_group_id {
 	CGT_CPTR_TCPAC,
 
 	CGT_HCRX_TCR2En,
+	CGT_HCRX_SCTLR2En,
 
 	CGT_CNTHCTL_EL1TVT,
 	CGT_CNTHCTL_EL1TVCT,
@@ -108,6 +109,7 @@ enum cgt_group_id {
 	CGT_HCR_TTLB_TTLBOS,
 	CGT_HCR_TVM_TRVM,
 	CGT_HCR_TVM_TRVM_HCRX_TCR2En,
+	CGT_HCR_TVM_TRVM_HCRX_SCTLR2En,
 	CGT_HCR_TPU_TICAB,
 	CGT_HCR_TPU_TOCU,
 	CGT_HCR_NV1_nNV2_ENSCXT,
@@ -374,12 +376,6 @@ static const struct trap_bits coarse_trap_bits[] = {
 		.mask		= MDCR_EL2_TDCC,
 		.behaviour	= BEHAVE_FORWARD_RW,
 	},
-	[CGT_HCRX_TCR2En] = {
-		.index		= HCRX_EL2,
-		.value 		= 0,
-		.mask		= HCRX_EL2_TCR2En,
-		.behaviour	= BEHAVE_FORWARD_RW,
-	},
 	[CGT_CPACR_E0POE] = {
 		.index		= CPTR_EL2,
 		.value		= CPACR_ELx_E0POE,
@@ -396,6 +392,18 @@ static const struct trap_bits coarse_trap_bits[] = {
 		.index		= CPTR_EL2,
 		.value		= CPTR_EL2_TCPAC,
 		.mask		= CPTR_EL2_TCPAC,
+		.behaviour	= BEHAVE_FORWARD_RW,
+	},
+	[CGT_HCRX_TCR2En] = {
+		.index		= HCRX_EL2,
+		.value 		= 0,
+		.mask		= HCRX_EL2_TCR2En,
+		.behaviour	= BEHAVE_FORWARD_RW,
+	},
+	[CGT_HCRX_SCTLR2En] = {
+		.index		= HCRX_EL2,
+		.value		= 0,
+		.mask		= HCRX_EL2_SCTLR2En,
 		.behaviour	= BEHAVE_FORWARD_RW,
 	},
 	[CGT_CNTHCTL_EL1TVT] = {
@@ -449,6 +457,8 @@ static const enum cgt_group_id *coarse_control_combo[] = {
 	MCB(CGT_HCR_TVM_TRVM,		CGT_HCR_TVM, CGT_HCR_TRVM),
 	MCB(CGT_HCR_TVM_TRVM_HCRX_TCR2En,
 					CGT_HCR_TVM, CGT_HCR_TRVM, CGT_HCRX_TCR2En),
+	MCB(CGT_HCR_TVM_TRVM_HCRX_SCTLR2En,
+					CGT_HCR_TVM, CGT_HCR_TRVM, CGT_HCRX_SCTLR2En),
 	MCB(CGT_HCR_TPU_TICAB,		CGT_HCR_TPU, CGT_HCR_TICAB),
 	MCB(CGT_HCR_TPU_TOCU,		CGT_HCR_TPU, CGT_HCR_TOCU),
 	MCB(CGT_HCR_NV1_nNV2_ENSCXT,	CGT_HCR_NV1_nNV2, CGT_HCR_ENSCXT),
@@ -777,6 +787,7 @@ static const struct encoding_to_trap_config encoding_to_cgt[] __initconst = {
 	SR_TRAP(OP_TLBI_RVALE1OSNXS,	CGT_HCR_TTLB_TTLBOS),
 	SR_TRAP(OP_TLBI_RVAALE1OSNXS,	CGT_HCR_TTLB_TTLBOS),
 	SR_TRAP(SYS_SCTLR_EL1,		CGT_HCR_TVM_TRVM),
+	SR_TRAP(SYS_SCTLR2_EL1,		CGT_HCR_TVM_TRVM_HCRX_SCTLR2En),
 	SR_TRAP(SYS_TTBR0_EL1,		CGT_HCR_TVM_TRVM),
 	SR_TRAP(SYS_TTBR1_EL1,		CGT_HCR_TVM_TRVM),
 	SR_TRAP(SYS_TCR_EL1,		CGT_HCR_TVM_TRVM),
@@ -1333,6 +1344,7 @@ static const struct encoding_to_trap_config encoding_to_fgt[] __initconst = {
 	SR_FGT(SYS_SCXTNUM_EL0,		HFGRTR, SCXTNUM_EL0, 1),
 	SR_FGT(SYS_SCXTNUM_EL1, 	HFGRTR, SCXTNUM_EL1, 1),
 	SR_FGT(SYS_SCTLR_EL1, 		HFGRTR, SCTLR_EL1, 1),
+	SR_FGT(SYS_SCTLR2_EL1,          HFGRTR, SCTLR_EL1, 1),
 	SR_FGT(SYS_REVIDR_EL1, 		HFGRTR, REVIDR_EL1, 1),
 	SR_FGT(SYS_PAR_EL1, 		HFGRTR, PAR_EL1, 1),
 	SR_FGT(SYS_MPIDR_EL1, 		HFGRTR, MPIDR_EL1, 1),
