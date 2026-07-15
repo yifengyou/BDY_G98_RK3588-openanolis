@@ -103,8 +103,7 @@ enum {
 /* Access flag */
 #define PTE_AF			(1ULL << 10)
 
-/* Access flag update enable/disable */
-#define TCR_EL1_HA		(1ULL << 39)
+/* Access flag update enable/disable - provided by generated sysreg-defs.h */
 
 void aarch64_get_supported_page_sizes(uint32_t ipa, uint32_t *ipa4k,
 					uint32_t *ipa16k, uint32_t *ipa64k);
