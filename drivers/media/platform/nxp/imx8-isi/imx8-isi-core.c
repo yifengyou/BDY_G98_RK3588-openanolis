@@ -252,7 +252,7 @@ static const struct mxc_isi_ier_reg mxc_imx8_isi_ier_v1 = {
 	.oflw_v_buf_en = { .offset = 23, .mask = 0x800000 },
 
 	.panic_y_buf_en = {.offset = 20, .mask = 0x100000  },
-	.panic_u_buf_en = {.offset = 22, .mask = 0x400000  },
+	.panic_u_buf_en = {.offset = 22, .mask = 0x400000 },
 	.panic_v_buf_en = {.offset = 24, .mask = 0x1000000 },
 };
 
@@ -474,13 +474,14 @@ static int mxc_isi_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	pm_runtime_enable(dev);
+	ret = devm_pm_runtime_enable(dev);
+	if (ret)
+		return ret;
 
 	ret = mxc_isi_crossbar_init(isi);
-	if (ret) {
-		dev_err(dev, "Failed to initialize crossbar: %d\n", ret);
-		goto err_pm;
-	}
+	if (ret)
+		return dev_err_probe(dev, ret,
+				     "Failed to initialize crossbar\n");
 
 	for (i = 0; i < isi->pdata->num_channels; ++i) {
 		ret = mxc_isi_pipe_init(isi, i);
@@ -503,8 +504,7 @@ static int mxc_isi_probe(struct platform_device *pdev)
 
 err_xbar:
 	mxc_isi_crossbar_cleanup(&isi->crossbar);
-err_pm:
-	pm_runtime_disable(isi->dev);
+
 	return ret;
 }
 
@@ -523,8 +523,6 @@ static void mxc_isi_remove(struct platform_device *pdev)
 
 	mxc_isi_v4l2_cleanup(isi);
 	mxc_isi_crossbar_cleanup(&isi->crossbar);
-
-	pm_runtime_disable(isi->dev);
 }
 
 static const struct of_device_id mxc_isi_of_match[] = {
@@ -539,7 +537,7 @@ static struct platform_driver mxc_isi_driver = {
 	.probe		= mxc_isi_probe,
 	.remove_new	= mxc_isi_remove,
 	.driver = {
-		.of_match_table = mxc_isi_of_match,
+		.of_match_table	= mxc_isi_of_match,
 		.name		= MXC_ISI_DRIVER_NAME,
 		.pm		= pm_ptr(&mxc_isi_pm_ops),
 	}
