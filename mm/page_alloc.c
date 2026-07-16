@@ -1392,7 +1392,7 @@ void __free_pages_core(struct page *page, unsigned int order)
 	 * relevant for memory onlining.
 	 */
 	__free_pages_ok(page, order, FPI_TO_TAIL);
-	for (loop = 0, p = page; loop < (nr_pages - 1); loop++, p++)
+	for (loop = 0, p = page; loop < nr_pages; loop++, p++)
 		__SetPageInited(p);
 }
 
