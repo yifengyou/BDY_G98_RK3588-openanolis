@@ -153,7 +153,7 @@ static unsigned long suitable_free_pages(struct zone *zone)
 	int order;
 	unsigned long free_pages = 0;
 
-	for (order = page_reporting_order; order < MAX_ORDER; order++) {
+	for (order = page_reporting_order; order < NR_PAGE_ORDERS; order++) {
 		unsigned long blocks;
 
 		blocks = zone->free_area[order].nr_free;
