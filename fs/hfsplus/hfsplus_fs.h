@@ -615,7 +615,7 @@ int check_and_correct_requested_length(struct hfs_bnode *node, int off, int len)
 
 	node_size = node->tree->node_size;
 
-	if ((off + len) > node_size) {
+	if ((u64)off + len > node_size) {
 		int new_len = (int)node_size - off;
 
 		pr_err("requested length has been corrected: "
