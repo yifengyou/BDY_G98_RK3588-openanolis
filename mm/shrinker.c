@@ -978,10 +978,14 @@ static int __prealloc_shrinker(struct shrinker *shrinker)
 void register_shrinker_prepared(struct shrinker *shrinker)
 {
 	mutex_lock(&shrinker_mutex);
-	list_add_tail(&shrinker->list, &shrinker_list);
+	list_add_tail_rcu(&shrinker->list, &shrinker_list);
 	shrinker->flags |= SHRINKER_REGISTERED;
 	shrinker_debugfs_add(shrinker);
 	mutex_unlock(&shrinker_mutex);
+
+	/* Match shrinker_register() for lockless refcount+RCU model */
+	init_completion(&shrinker->done);
+	refcount_set(&shrinker->refcount, 1);
 }
 
 static int __register_shrinker(struct shrinker *shrinker)
