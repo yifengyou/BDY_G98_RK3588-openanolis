@@ -899,7 +899,10 @@ static void shrinker_free_rcu_cb(struct rcu_head *head)
 	struct shrinker *shrinker = container_of(head, struct shrinker, rcu);
 
 	kfree(shrinker->nr_deferred);
-	kfree(shrinker);
+
+	/* Old KAPI shrinkers may be static or embedded, not allocated */
+	if (shrinker->flags & SHRINKER_ALLOCATED)
+		kfree(shrinker);
 }
 
 void shrinker_free(struct shrinker *shrinker)
@@ -942,7 +945,15 @@ void shrinker_free(struct shrinker *shrinker)
 	if (debugfs_entry)
 		shrinker_debugfs_remove(debugfs_entry, debugfs_id);
 
-	call_rcu(&shrinker->rcu, shrinker_free_rcu_cb);
+	if (shrinker->flags & SHRINKER_ALLOCATED) {
+		/* New API: async free via RCU, including the shrinker struct */
+		call_rcu(&shrinker->rcu, shrinker_free_rcu_cb);
+	} else {
+		/* Old KAPI: sync free to match original unregister_shrinker() */
+		synchronize_rcu();
+		kfree(shrinker->nr_deferred);
+		shrinker->nr_deferred = NULL;
+	}
 }
 EXPORT_SYMBOL_GPL(shrinker_free);
 
@@ -1030,6 +1041,8 @@ EXPORT_SYMBOL(register_shrinker);
  */
 void unregister_shrinker(struct shrinker *shrinker)
 {
+	if (!(shrinker->flags & SHRINKER_REGISTERED))
+		return;
 	shrinker_free(shrinker);
 }
 EXPORT_SYMBOL(unregister_shrinker);
