@@ -322,6 +322,9 @@ static int perf_ibs_init(struct perf_event *event)
 	if (config & ~perf_ibs->config_mask)
 		return -EINVAL;
 
+	if (has_branch_stack(event))
+		return -EOPNOTSUPP;
+
 	/* handle exclude_{user,kernel} in the IRQ handler */
 	if (event->attr.exclude_host || event->attr.exclude_guest ||
 	    event->attr.exclude_idle)
