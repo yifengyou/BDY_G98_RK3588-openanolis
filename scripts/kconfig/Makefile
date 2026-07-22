@@ -90,13 +90,37 @@ else
 	$(Q)$(MAKE) -f $(srctree)/Makefile $(KBUILD_DEFCONFIG)
 endif
 
+anolis_defconfig_env := DIST_DO_GENERATE_DOT_CONFIG=Y DIST_CONFIG_KERNEL_NAME=ANCK
+anolis_defconfig_olddefconfig := $(MAKE) -C $(srctree) olddefconfig
+
+ifeq ($(building_out_of_srctree),1)
+anolis_defconfig_env += DIST_KBUILD_OUTPUT="$(abs_objtree)" \
+	DIST_CONFIG_PATH="$(abspath $(KCONFIG_CONFIG))" \
+	DIST_OUTPUT="$(abs_objtree)/anolis/output"
+anolis_defconfig_olddefconfig := $(MAKE) -C $(abs_objtree) olddefconfig
+endif
+
+define cmd_anolis_defconfig
+set -e; \
+	config="$(abspath $(KCONFIG_CONFIG))"; \
+	saved=; \
+	if [ -e "$$config" ]; then \
+		saved=$$(mktemp "$$(dirname "$$config")/.anolis-defconfig.XXXXXX"); \
+		trap 'rm -f "$$saved"' EXIT; \
+		cp -p "$$config" "$$saved"; \
+	fi; \
+	$(anolis_defconfig_env) $(MAKE) -C $(srctree)/anolis/ $(1); \
+	$(anolis_defconfig_olddefconfig); \
+	if [ -n "$$saved" ] && cmp -s "$$saved" "$$config"; then \
+		touch -r "$$saved" "$$config"; \
+	fi
+endef
+
 anolis_defconfig: $(obj)/conf
-	$(Q)DIST_DO_GENERATE_DOT_CONFIG=Y DIST_CONFIG_KERNEL_NAME=ANCK $(MAKE) -C $(srctree)/anolis/ dist-defconfig
-	$(Q)$(MAKE) -C $(srctree) olddefconfig
+	$(Q)$(call cmd_anolis_defconfig,dist-defconfig)
 
 anolis-debug_defconfig: $(obj)/conf
-	$(Q)DIST_DO_GENERATE_DOT_CONFIG=Y DIST_CONFIG_KERNEL_NAME=ANCK $(MAKE) -C $(srctree)/anolis/ dist-debug-defconfig
-	$(Q)$(MAKE) -C $(srctree) olddefconfig
+	$(Q)$(call cmd_anolis_defconfig,dist-debug-defconfig)
 
 %_defconfig: $(obj)/conf
 	$(Q)$< $(silent) --defconfig=arch/$(SRCARCH)/configs/$@ $(Kconfig)

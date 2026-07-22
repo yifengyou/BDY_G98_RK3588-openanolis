@@ -40,6 +40,9 @@ DIST_OUTPUT ?= $(DIST_SOURCES)output/
 DIST_RPMBUILDDIR_OUTPUT = ${DIST_OUTPUT}/rpmbuild
 DIST_SHORT_OUTPUT=$(subst $(DIST_SRCROOT),,$(DIST_OUTPUT))
 
+# Path to copy the generated kernel configuration to.
+DIST_CONFIG_PATH ?= $(DIST_SRCROOT).config
+
 DIST_SPEC_TEMPLATE = kernel.spec.template
 DIST_SPEC_FILE = kernel.spec
 

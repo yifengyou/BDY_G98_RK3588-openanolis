@@ -5,7 +5,7 @@
 #
 # Copyright (C) 2023 Qiao Ma <mqaio@linux.alibaba.com>
 
-set -e
+set -e -o pipefail
 
 SCRIPT_DIR=$(realpath $(dirname $0))
 FILE_LIST=${DIST_OUTPUT}/file_list
@@ -30,9 +30,19 @@ else
     done
 fi
 
-bash ${DIST_OUTPUT}/generate.sh | tee ${FILE_LIST}
+export DIST_KBUILD_OUTPUT DIST_CONFIG_PATH
+bash "${DIST_OUTPUT}/generate.sh" | tee "${FILE_LIST}"
 
 if [ "x${DIST_DO_GENERATE_DOT_CONFIG}" = "xY" ]; then
-    file=$(cat ${FILE_LIST} | grep "processed" | awk '{print $4}' | head -1)
-    cp -f ${file} ${DIST_SRCROOT}.config
+    file=$(awk '/processed/ { print $4; exit }' "${FILE_LIST}")
+    if [ -z "${file}" ] || [ ! -f "${file}" ]; then
+        echo "Unable to find the generated configuration file" >&2
+        exit 1
+    fi
+
+    config_path=${DIST_CONFIG_PATH:-${DIST_SRCROOT}.config}
+    mkdir -p "$(dirname "${config_path}")"
+    if ! cmp -s "${file}" "${config_path}"; then
+        cp -f "${file}" "${config_path}"
+    fi
 fi
