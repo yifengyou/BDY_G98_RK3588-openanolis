@@ -874,6 +874,20 @@ static blk_status_t nvme_prep_rq(struct nvme_dev *dev, struct request *req)
 		ret = nvme_map_data(dev, req, &iod->cmd);
 		if (ret)
 			goto out_free_cmd;
+#ifdef CONFIG_NVME_PASS_REQFLAG
+		if (dev->ctrl.pass_reqflag_enabled &&
+		    (req_op(req) == REQ_OP_WRITE || req_op(req) == REQ_OP_READ)) {
+			/* Extract and pack request flags into reqflag from low to high bit,
+			 * bit-0 informs backend that feature is enabled
+			 */
+			u16 reqflag = get_and_pack_req_cmd_flags(req);
+
+			/* Set reqflag to the high 16 bits of cdw3 */
+			iod->cmd.common.cdw2[1] =
+				(iod->cmd.common.cdw2[1] & cpu_to_le32(0xFFFF)) |
+				cpu_to_le32((u32)reqflag << 16);
+		}
+#endif
 	}
 
 	if (blk_integrity_rq(req)) {

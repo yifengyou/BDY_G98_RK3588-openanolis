@@ -1268,4 +1268,19 @@ static inline bool blk_req_can_dispatch_to_zone(struct request *rq)
 }
 #endif /* CONFIG_BLK_DEV_ZONED */
 
+static inline u16 get_and_pack_req_cmd_flags(struct request *rq)
+{
+	/* Extract and pack request flags into uint16_t,
+	 * bit-0 indicates that the value is valid
+	 */
+	return 1 << 0 |
+		((rq->cmd_flags & REQ_SYNC) ? (1 << 1) : 0) |
+		((rq->cmd_flags & REQ_META) ? (1 << 2) : 0) |
+		((rq->cmd_flags & REQ_PRIO) ? (1 << 3) : 0) |
+		((rq->cmd_flags & REQ_IDLE) ? (1 << 4) : 0) |
+		((rq->cmd_flags & REQ_PREFLUSH) ? (1 << 5) : 0) |
+		((rq->cmd_flags & REQ_RAHEAD) ? (1 << 6) : 0) |
+		((rq->cmd_flags & REQ_BACKGROUND) ? (1 << 7) : 0);
+}
+
 #endif /* BLK_MQ_H */
