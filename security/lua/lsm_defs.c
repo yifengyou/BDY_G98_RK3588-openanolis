@@ -30,6 +30,7 @@
 #include <linux/lauxlib.h>
 #include "lsm.h"
 #include "lua_object.h"
+#include "lua_mm.h"
 #include "lsm_defs.h"
 
 
@@ -1554,13 +1555,13 @@ LUA_LSM_INT_DEFINE4(mmap_file, struct file *, file, unsigned long, reqprot,
 }
 
 /**
- * TODO: file_mprotect
+ * file_mprotect
  * Default: 0
  */
 LUA_LSM_INT_DEFINE3(file_mprotect, struct vm_area_struct *, vma,
 		unsigned long, reqprot, unsigned long, prot)
 {
-	lua_pushnil(L);	/* TODO: vma */
+	newvma(L, vma, reqprot, prot);
 	lua_pushnumber(L, (lua_Number)reqprot);
 	lua_pushnumber(L, (lua_Number)prot);
 }
