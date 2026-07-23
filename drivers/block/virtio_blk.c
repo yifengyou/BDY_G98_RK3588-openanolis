@@ -912,7 +912,19 @@ static blk_status_t virtblk_setup_cmd(struct virtio_device *vdev,
 	vbr->in_hdr_len = in_hdr_len;
 	vbr->out_hdr.type = cpu_to_virtio32(vdev, type);
 	vbr->out_hdr.sector = cpu_to_virtio64(vdev, sector);
+#ifdef CONFIG_VIRTIO_BLK_PASS_REQFLAG
+	vbr->out_hdr.reqinfo.ioprio = cpu_to_virtio16(vdev, (u16)req_get_ioprio(req));
+	if (req_op(req) == REQ_OP_WRITE || req_op(req) == REQ_OP_READ)
+		/* Extract and pack request flags into reqinfo.flags,
+		 * bit-0 informs backend that feature is enabled
+		 */
+		vbr->out_hdr.reqinfo.flags = cpu_to_virtio16(vdev,
+						get_and_pack_req_cmd_flags(req));
+	else
+		vbr->out_hdr.reqinfo.flags = cpu_to_virtio16(vdev, 0);
+#else
 	vbr->out_hdr.ioprio = cpu_to_virtio32(vdev, req_get_ioprio(req));
+#endif
 
 	if (type == VIRTIO_BLK_T_DISCARD || type == VIRTIO_BLK_T_WRITE_ZEROES ||
 	    type == VIRTIO_BLK_T_SECURE_ERASE) {

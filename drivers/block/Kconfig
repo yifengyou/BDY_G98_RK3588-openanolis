@@ -363,6 +363,24 @@ config VIRTIO_BLK_RING_PAIR
 
 	  If unsure, say N.
 
+config VIRTIO_BLK_PASS_REQFLAG
+	bool "Virtio block device pass I/O flags"
+	depends on VIRTIO_BLK
+	help
+	  Enable support for virtio-blk devices to pass I/O block flags
+	  (such as REQ_META, REQ_BACKGROUND, etc.) to the backend storage.
+
+	  When enabled, the virtio-blk driver forwards per-request I/O
+	  flags to the backend device, allowing backend to do specific
+	  optimizations.
+
+	  Note that this feature requires both guest and backend to support
+	  the corresponding I/O flag protocol. If the backend does not
+	  understand the flags, they are silently ignored and there is no
+	  functional change compared to disabling this option.
+
+	  If unsure, say N.
+
 config BLK_DEV_RBD
 	tristate "Rados block device (RBD)"
 	depends on INET && BLOCK

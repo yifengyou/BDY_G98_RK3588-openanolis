@@ -225,6 +225,10 @@ struct virtio_blk_outhdr {
 			__virtio16 ioprio;
 			__virtio16 tag;
 		} rpair;
+		struct {
+			__virtio16 ioprio;
+			__virtio16 flags;
+		} reqinfo;
 		__virtio32 ioprio;
 	};
 	/* Sector (ie. 512 byte offset) */
