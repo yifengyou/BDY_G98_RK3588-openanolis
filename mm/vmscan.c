@@ -116,6 +116,11 @@ struct scan_control {
 	/* Proactive reclaim invoked by userspace through memory.reclaim */
 	unsigned int proactive:1;
 
+#ifdef CONFIG_PAGECACHE_LIMIT
+	/* Reclaim triggered by the per-memcg pagecache limit */
+	unsigned int pgcache_limit:1;
+#endif
+
 	/*
 	 * Cgroup memory below memory.low is protected as long as we
 	 * don't threaten to OOM. If any cgroup is reclaimed at
@@ -5055,6 +5060,15 @@ static bool should_abort_scan(struct lruvec *lruvec, struct scan_control *sc)
 	if (!current_is_kswapd() || sc->order)
 		return false;
 
+#ifdef CONFIG_PAGECACHE_LIMIT
+	/*
+	 * Pagecache limit reclaim is bounded by the memcg's own overflow;
+	 * global watermarks below are irrelevant to it.
+	 */
+	if (sc->pgcache_limit)
+		return !memcg_get_pgcache_overflow_size(sc->target_mem_cgroup);
+#endif
+
 	mark = sysctl_numa_balancing_mode & NUMA_BALANCING_MEMORY_TIERING ?
 	       WMARK_PROMO : WMARK_HIGH;
 
@@ -5231,9 +5245,6 @@ restart:
 static void lru_gen_shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)
 {
 	struct blk_plug plug;
-
-	VM_WARN_ON_ONCE(root_reclaim(sc));
-	VM_WARN_ON_ONCE(!sc->may_writepage || !sc->may_unmap);
 
 	lru_add_drain();
 
@@ -6015,6 +6026,8 @@ static void shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)
 	struct blk_plug plug;
 
 	if (lru_gen_enabled() && !root_reclaim(sc)) {
+		VM_WARN_ON_ONCE(!sc->may_writepage || !sc->may_unmap);
+
 		lru_gen_shrink_lruvec(lruvec, sc);
 		return;
 	}
@@ -8032,7 +8045,10 @@ static int __pagecache_shrink(struct mem_cgroup *memcg,
 			}
 
 			lruvec = mem_cgroup_lruvec(tmp, pgdat);
-			shrink_lruvec(lruvec, sc);
+			if (lru_gen_enabled())
+				lru_gen_shrink_lruvec(lruvec, sc);
+			else
+				shrink_lruvec(lruvec, sc);
 			if (sc->nr_reclaimed >= sc->nr_to_reclaim) {
 				mem_cgroup_iter_break(new, tmp);
 				goto out;
@@ -8059,6 +8075,7 @@ void __memcg_pagecache_shrink(struct mem_cgroup *memcg,
 		.may_writepage = 0,
 		.priority = DEF_PRIORITY,
 		.target_mem_cgroup  = memcg,
+		.pgcache_limit = 1,
 	};
 
 	/*
