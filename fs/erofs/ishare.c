@@ -9,8 +9,6 @@
 #include "internal.h"
 #include "xattr.h"
 
-#include "../internal.h"
-
 static struct vfsmount *erofs_ishare_mnt;
 
 static inline bool erofs_is_ishare_inode(struct inode *inode)
@@ -39,10 +37,12 @@ static int erofs_ishare_iget5_set(struct inode *inode, void *data)
 
 bool erofs_ishare_fill_inode(struct inode *inode)
 {
+	static const struct file_operations empty_fops = {};
 	struct erofs_sb_info *sbi = EROFS_SB(inode->i_sb);
 	struct erofs_inode *vi = EROFS_I(inode);
 	const struct address_space_operations *aops;
 	struct erofs_inode_fingerprint fp;
+	struct dentry *sd;
 	struct inode *sharedinode;
 	unsigned long hash;
 
@@ -61,7 +61,9 @@ bool erofs_ishare_fill_inode(struct inode *inode)
 	}
 
 	if (sharedinode->i_state & I_NEW) {
+		sharedinode->i_fop = &empty_fops;
 		sharedinode->i_mapping->a_ops = aops;
+		sharedinode->i_mode = 0444 | S_IFREG;
 		sharedinode->i_size = vi->vfs_inode.i_size;
 		unlock_new_inode(sharedinode);
 	} else {
@@ -78,7 +80,10 @@ bool erofs_ishare_fill_inode(struct inode *inode)
 			return false;
 		}
 	}
-	vi->sharedinode = sharedinode;
+	sd = d_obtain_alias(sharedinode); /* disconnected dentries for sharedinodes */
+	if (IS_ERR(sd))
+		return false;
+	vi->sharedentry = sd;
 	INIT_LIST_HEAD(&vi->ishare_list);
 	spin_lock(&EROFS_I(sharedinode)->ishare_lock);
 	list_add(&vi->ishare_list, &EROFS_I(sharedinode)->ishare_list);
@@ -88,48 +93,40 @@ bool erofs_ishare_fill_inode(struct inode *inode)
 
 void erofs_ishare_free_inode(struct inode *inode)
 {
-	struct erofs_inode *vi = EROFS_I(inode);
-	struct inode *sharedinode = vi->sharedinode;
+	struct erofs_inode *vi = EROFS_I(inode), *svi;
 
-	if (!sharedinode)
+	if (!vi->sharedentry)
 		return;
-	spin_lock(&EROFS_I(sharedinode)->ishare_lock);
+	svi = EROFS_I(d_inode(vi->sharedentry));
+	spin_lock(&svi->ishare_lock);
 	list_del(&vi->ishare_list);
-	spin_unlock(&EROFS_I(sharedinode)->ishare_lock);
-	iput(sharedinode);
-	vi->sharedinode = NULL;
+	spin_unlock(&svi->ishare_lock);
+	dput(vi->sharedentry);
+	vi->sharedentry = NULL;
 }
 
 static int erofs_ishare_file_open(struct inode *inode, struct file *file)
 {
-	struct inode *sharedinode = EROFS_I(inode)->sharedinode;
-	struct file *realfile;
+	struct path sharedpath = {
+		.mnt = erofs_ishare_mnt,
+		.dentry = EROFS_I(inode)->sharedentry,
+	};
+	struct file *rf;
 
 	if (file->f_flags & O_DIRECT)
 		return -EINVAL;
-	realfile = alloc_empty_backing_file(O_RDONLY|O_NOATIME, current_cred(),
-					    file);
-	if (IS_ERR(realfile))
-		return PTR_ERR(realfile);
-	ihold(sharedinode);
-	realfile->f_op = &erofs_file_fops;
-	realfile->f_inode = sharedinode;
-	realfile->f_mapping = sharedinode->i_mapping;
-	path_get(&file->f_path);
-	*backing_file_user_path(realfile) = file->f_path;
 
-	file_ra_state_init(&realfile->f_ra, file->f_mapping);
-	realfile->private_data = EROFS_I(inode);
-	file->private_data = realfile;
+	rf = backing_file_open(file, file->f_flags | O_NOATIME,
+			       &sharedpath, current_cred());
+	if (IS_ERR(rf))
+		return PTR_ERR(rf);
+	file->private_data = rf;
 	return 0;
 }
 
 static int erofs_ishare_file_release(struct inode *inode, struct file *file)
 {
-	struct file *realfile = file->private_data;
-
-	iput(realfile->f_inode);
-	fput(realfile);
+	fput(file->private_data);
 	file->private_data = NULL;
 	return 0;
 }
