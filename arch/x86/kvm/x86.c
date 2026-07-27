@@ -12846,11 +12846,17 @@ void kvm_arch_pre_destroy_vm(struct kvm *kvm)
 	 * iterating over vCPUs in a different task while vCPUs are being freed
 	 * is unsafe, i.e. will lead to use-after-free.  The PIT also needs to
 	 * be stopped before IRQ routing is freed.
+	 *
+	 * do not free the in-kernel pic or i/o apic here (but as above, make
+	 * sure to flush any background work), as kvm expects interrupt routing
+	 * structures to be valid until vcpus are destroyed.
 	 */
 	cancel_delayed_work_sync(&kvm->arch.kvmclock_sync_work);
 	cancel_delayed_work_sync(&kvm->arch.kvmclock_update_work);
 
 	kvm_free_pit(kvm);
+	if (kvm->arch.vioapic)
+		cancel_delayed_work_sync(&kvm->arch.vioapic->eoi_inject);
 
 	kvm_mmu_pre_destroy_vm(kvm);
 }
