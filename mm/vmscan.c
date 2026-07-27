@@ -288,6 +288,12 @@ static bool writeback_throttling_sane(struct scan_control *sc)
 }
 #endif
 
+static inline bool is_exec_file_folio(struct folio *folio,
+		unsigned long vm_flags)
+{
+	return (vm_flags & VM_EXEC) && folio_is_file_lru(folio);
+}
+
 static void set_task_reclaim_state(struct task_struct *task,
 				   struct reclaim_state *rs)
 {
@@ -930,7 +936,7 @@ static enum folio_references folio_check_references(struct folio *folio,
 	/*
 	 * Activate file-backed executable folios if min_cache_kbytes is enabled.
 	 */
-	if ((vm_flags & VM_EXEC) && folio_is_file_lru(folio) && sc->file_is_reserved)
+	if (is_exec_file_folio(folio, vm_flags) && sc->file_is_reserved)
 		return FOLIOREF_ACTIVATE;
 
 	if (lru_gen_enabled()) {
@@ -965,7 +971,7 @@ static enum folio_references folio_check_references(struct folio *folio,
 		/*
 		 * Activate file-backed executable folios after first usage.
 		 */
-		if ((vm_flags & VM_EXEC) && folio_is_file_lru(folio))
+		if (is_exec_file_folio(folio, vm_flags))
 			return FOLIOREF_ACTIVATE;
 
 		return FOLIOREF_KEEP;
@@ -2149,7 +2155,7 @@ static void shrink_active_list(unsigned long nr_to_scan,
 			 * IO, plus JVM can create lots of anon VM_EXEC folios,
 			 * so we ignore them here.
 			 */
-			if ((vm_flags & VM_EXEC) && folio_is_file_lru(folio)) {
+			if (is_exec_file_folio(folio, vm_flags)) {
 				nr_rotated += folio_nr_pages(folio);
 				list_add(&folio->lru, &l_active);
 				continue;
