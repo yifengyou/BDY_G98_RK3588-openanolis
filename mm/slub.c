@@ -5129,7 +5129,12 @@ void __init kmem_cache_init(void)
 	/* Now we can use the kmem_cache to allocate kmalloc slabs */
 	setup_kmalloc_cache_index_table();
 	create_kmalloc_caches(0);
-	create_oot_kmalloc_caches(0);
+	/*
+	 * OOT kmalloc caches only serve the module symbol redirection
+	 * mechanism, so skip creating them when modules are disabled.
+	 */
+	if (IS_ENABLED(CONFIG_MODULES))
+		create_oot_kmalloc_caches(0);
 
 	/* Setup random freelists for each cache */
 	init_freelist_randomization();
