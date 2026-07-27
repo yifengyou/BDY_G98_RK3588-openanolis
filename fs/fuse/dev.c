@@ -431,6 +431,13 @@ static void request_wait_answer(struct fuse_req *req)
 		/* Request is not yet in userspace, bail out */
 		if (test_bit(FR_PENDING, &req->flags)) {
 			list_del(&req->list);
+			/*
+			 * Remove stale intr_entry queued by queue_interrupt()
+			 * before the request was requeued, which would
+			 * otherwise dangle on fiq->interrupts once the
+			 * request is freed.
+			 */
+			list_del_init(&req->intr_entry);
 			spin_unlock(&fiq->lock);
 			__fuse_put_request(req);
 			req->out.h.error = -EINTR;
