@@ -5455,7 +5455,9 @@ vm_fault_t set_zero_pte(struct vm_fault *vmf, struct folio *folio,
 	new_folio = filemap_get_entry(vma->vm_file->f_mapping, vmf->pgoff);
 
 	if (new_folio) {
-		folio_put(new_folio);
+		/* Shadow and shmem swap entries come without a reference. */
+		if (!xa_is_value(new_folio))
+			folio_put(new_folio);
 		/*
 		 * Populated in the meantime, so let the access fault again and
 		 * pick up the folio.  Not VM_FAULT_RETRY: the fault lock is
