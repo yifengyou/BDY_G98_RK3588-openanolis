@@ -8086,8 +8086,8 @@ void __memcg_pagecache_shrink(struct mem_cgroup *memcg,
 	if (!nr_should_reclaim)
 		return;
 	if (memcg->pgcache_limit_reclaim_bytes &&
-	    memcg->pgcache_limit_reclaim_bytes < nr_should_reclaim)
-		nr_should_reclaim = memcg->pgcache_limit_reclaim_bytes;
+	    (memcg->pgcache_limit_reclaim_bytes >> PAGE_SHIFT) < nr_should_reclaim)
+		nr_should_reclaim = memcg->pgcache_limit_reclaim_bytes >> PAGE_SHIFT;
 
 	sc.nr_to_reclaim = max(nr_should_reclaim, SWAP_CLUSTER_MAX);
 	set_task_reclaim_state(current, &sc.reclaim_state);
