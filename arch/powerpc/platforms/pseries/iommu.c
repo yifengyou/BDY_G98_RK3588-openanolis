@@ -1618,8 +1618,6 @@ static bool enable_ddw(struct pci_dev *dev, struct device_node *pdn)
 	}
 
 	if (default_win_removed) {
-		iommu_tce_table_put(pci->table_group->tables[0]);
-		pci->table_group->tables[0] = NULL;
 		if (!of_find_property(pdn, "ibm,dma-window-saved", NULL))
 			copy_property(pdn, "ibm,dma-window", "ibm,dma-window-saved");
 		/* default_win is valid here because default_win_removed == true */
