@@ -41,15 +41,29 @@
 
 /**
  * NE_EIF_LOAD_OFFSET - The offset where to copy the Enclave Image Format (EIF)
- *			image in enclave memory.
+ *			image in enclave memory, for genuine AWS Nitro Enclaves
+ *			devices with a single MMIO BAR.
  */
 #define NE_EIF_LOAD_OFFSET	(8 * 1024UL * 1024UL)
 
 /**
+ * DE_EIF_LOAD_OFFSET - The offset where to copy the EIF image in enclave
+ *			memory, for Dragonfly Enclave devices with the split
+ *			MMIO layout. Increased to 64 MiB to support OVMF.
+ */
+#define DE_EIF_LOAD_OFFSET	(64 * 1024UL * 1024UL)
+
+/**
  * NE_MIN_ENCLAVE_MEM_SIZE - The minimum memory size an enclave can be launched
- *			     with.
+ *			     with, for genuine AWS Nitro Enclaves devices.
  */
 #define NE_MIN_ENCLAVE_MEM_SIZE	(64 * 1024UL * 1024UL)
+
+/**
+ * DE_MIN_ENCLAVE_MEM_SIZE - The minimum memory size an enclave can be launched
+ *			     with, for Dragonfly Enclave devices.
+ */
+#define DE_MIN_ENCLAVE_MEM_SIZE	(128 * 1024UL * 1024UL)
 
 /**
  * NE_MIN_MEM_REGION_SIZE - The minimum size of an enclave memory region.
@@ -79,6 +93,36 @@ static struct miscdevice ne_misc_dev = {
 struct ne_devs ne_devs = {
 	.ne_misc_dev	= &ne_misc_dev,
 };
+
+/**
+ * ne_eif_load_offset() - Get the EIF image load offset matching the MMIO
+ *			  layout of the probed PCI device.
+ * @ne_pci_dev :	Private data associated with the PCI device.
+ *
+ * Context: Process context.
+ * Return:
+ * * The EIF image load offset, in bytes.
+ */
+static u64 ne_eif_load_offset(struct ne_pci_dev *ne_pci_dev)
+{
+	return ne_pci_dev->has_bar_de ?
+		DE_EIF_LOAD_OFFSET : NE_EIF_LOAD_OFFSET;
+}
+
+/**
+ * ne_min_enclave_mem_size() - Get the minimum enclave memory size matching the
+ *			       MMIO layout of the probed PCI device.
+ * @ne_pci_dev :	Private data associated with the PCI device.
+ *
+ * Context: Process context.
+ * Return:
+ * * The minimum enclave memory size, in bytes.
+ */
+static u64 ne_min_enclave_mem_size(struct ne_pci_dev *ne_pci_dev)
+{
+	return ne_pci_dev->has_bar_de ?
+		DE_MIN_ENCLAVE_MEM_SIZE : NE_MIN_ENCLAVE_MEM_SIZE;
+}
 
 /*
  * TODO: Update logic to create new sysfs entries instead of using
@@ -1086,10 +1130,10 @@ static int ne_start_enclave_ioctl(struct ne_enclave *ne_enclave,
 		return -NE_ERR_NO_MEM_REGIONS_ADDED;
 	}
 
-	if (ne_enclave->mem_size < NE_MIN_ENCLAVE_MEM_SIZE) {
+	if (ne_enclave->mem_size < ne_enclave->min_mem_size) {
 		dev_err_ratelimited(ne_misc_dev.this_device,
-				    "Enclave memory is less than %ld\n",
-				    NE_MIN_ENCLAVE_MEM_SIZE);
+				    "Enclave memory is less than %llu\n",
+				    ne_enclave->min_mem_size);
 
 		return -NE_ERR_ENCLAVE_MEM_MIN_SIZE;
 	}
@@ -1244,7 +1288,7 @@ static long ne_enclave_ioctl(struct file *file, unsigned int cmd, unsigned long 
 		}
 
 		if (image_load_info.flags == NE_EIF_IMAGE)
-			image_load_info.memory_offset = NE_EIF_LOAD_OFFSET;
+			image_load_info.memory_offset = ne_enclave->eif_load_offset;
 
 		if (copy_to_user((void __user *)arg, &image_load_info, sizeof(image_load_info)))
 			return -EFAULT;
@@ -1682,10 +1726,12 @@ static int ne_create_vm_ioctl(struct ne_pci_dev *ne_pci_dev, u64 __user *slot_ui
 	}
 
 	init_waitqueue_head(&ne_enclave->eventq);
+	ne_enclave->eif_load_offset = ne_eif_load_offset(ne_pci_dev);
 	ne_enclave->has_event = false;
 	mutex_init(&ne_enclave->enclave_info_mutex);
 	ne_enclave->max_mem_regions = cmd_reply.mem_regions;
 	INIT_LIST_HEAD(&ne_enclave->mem_regions_list);
+	ne_enclave->min_mem_size = ne_min_enclave_mem_size(ne_pci_dev);
 	ne_enclave->mm = current->mm;
 	ne_enclave->slot_uid = cmd_reply.slot_uid;
 	ne_enclave->state = NE_STATE_INIT;

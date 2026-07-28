@@ -34,6 +34,9 @@ struct ne_mem_region {
 
 /**
  * struct ne_enclave - Per-enclave data used for enclave lifetime management.
+ * @eif_load_offset:		The offset where to copy the EIF image in enclave
+ *				memory, snapshotted from the PCI device MMIO
+ *				layout at enclave creation time.
  * @enclave_info_mutex :	Mutex for accessing this internal state.
  * @enclave_list_entry :	Entry in the list of created enclaves.
  * @eventq:			Wait queue used for out-of-band event notifications
@@ -45,6 +48,9 @@ struct ne_mem_region {
  *				handled by the hypervisor.
  * @mem_regions_list:		Enclave user space memory regions list.
  * @mem_size:			Enclave memory size.
+ * @min_mem_size:		The minimum memory size the enclave can be launched
+ *				with, snapshotted from the PCI device MMIO layout
+ *				at enclave creation time.
  * @mm :			Enclave process abstraction mm data struct.
  * @nr_mem_regions:		Number of memory regions associated with the enclave.
  * @nr_parent_vm_cores :	The size of the threads per core array. The
@@ -62,6 +68,7 @@ struct ne_mem_region {
  * @vcpu_ids:			Cpumask of the vCPUs that are set for the enclave.
  */
 struct ne_enclave {
+	u64			eif_load_offset;
 	struct mutex		enclave_info_mutex;
 	struct list_head	enclave_list_entry;
 	wait_queue_head_t	eventq;
@@ -69,6 +76,7 @@ struct ne_enclave {
 	u64			max_mem_regions;
 	struct list_head	mem_regions_list;
 	u64			mem_size;
+	u64			min_mem_size;
 	struct mm_struct	*mm;
 	unsigned int		nr_mem_regions;
 	unsigned int		nr_parent_vm_cores;

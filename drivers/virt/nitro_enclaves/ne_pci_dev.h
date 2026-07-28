@@ -25,6 +25,10 @@
  * PCI_BAR_NE - Nitro Enclaves PCI device MMIO BAR.
  */
 #define PCI_BAR_NE		(0x03)
+/**
+ * PCI_BAR_DE - Dragonfly Enclave PCI device additional MMIO BAR.
+ */
+#define PCI_BAR_DE		(PCI_BAR_NE + 1)
 
 /**
  * DOC: Device registers in the NE PCI device MMIO BAR
@@ -288,6 +292,12 @@ struct ne_pci_dev_cmd_reply {
  *				enclave state scanning and propagation to the
  *				enclave process.
  * @iomem_base :		MMIO region of the PCI device.
+ * @mem_base:			MMIO region for the command payload buffers. It
+ *				points to the additional DE BAR mapping when
+ *				present, otherwise it equals @iomem_base.
+ * @has_bar_de:			The device implements the additional DE BAR
+ *				(split MMIO layout), unset on genuine AWS Nitro
+ *				Enclaves devices with a single BAR.
  * @notify_work:		Work item for every received out-of-band event.
  * @pci_dev_mutex:		Mutex for accessing the PCI device MMIO space.
  * @pdev:			PCI device data structure.
@@ -299,6 +309,8 @@ struct ne_pci_dev {
 	struct mutex		enclaves_list_mutex;
 	struct workqueue_struct	*event_wq;
 	void __iomem		*iomem_base;
+	void __iomem		*mem_base;
+	bool			has_bar_de;
 	struct work_struct	notify_work;
 	struct mutex		pci_dev_mutex;
 	struct pci_dev		*pdev;
