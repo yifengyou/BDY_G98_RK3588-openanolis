@@ -5412,20 +5412,23 @@ vm_fault_t set_zero_pte(struct vm_fault *vmf, struct folio *folio,
 	struct vm_area_struct *vma = vmf->vma;
 	struct folio *new_folio;
 	bool uffd_wp = vmf_orig_pte_uffd_wp(vmf);
-	bool write = vmf->flags & FAULT_FLAG_WRITE;
 	bool prefault = !in_range(vmf->address, addr, nr * PAGE_SIZE);
 	pte_t entry;
 
 	flush_icache_pages(vma, page, nr);
 	entry = mk_pte(page, vma->vm_page_prot);
+	/*
+	 * Only read faults get here, and a private mapping's vm_page_prot is
+	 * PAGE_COPY, so @entry is not writable - the shared zeropage must never
+	 * be, a write has to be resolved through the normal COW path.
+	 */
+	WARN_ON_ONCE(vmf->flags & FAULT_FLAG_WRITE);
 
 	if (prefault && arch_wants_old_prefaulted_pte())
 		entry = pte_mkold(entry);
 	else
 		entry = pte_sw_mkyoung(entry);
 
-	if (write)
-		entry = maybe_mkwrite(pte_mkdirty(entry), vma);
 	if (unlikely(uffd_wp))
 		entry = pte_mkuffd_wp(entry);
 
@@ -5640,7 +5643,12 @@ fallback:
 		goto fallback;
 	}
 
-	if (likely(!is_zero_page(vmf->page))) {
+	/*
+	 * Dispatch on the page that is actually going to be installed: @page
+	 * may be vmf->dup_page or vmf->cow_page rather than vmf->page, and only
+	 * the latter can legitimately be the shared zeropage.
+	 */
+	if (likely(!is_zero_page(page))) {
 		folio_ref_add(folio, nr_pages - 1);
 		set_pte_range(vmf, folio, page, nr_pages, addr);
 		type = is_cow ? MM_ANONPAGES : mm_counter_file(page);
