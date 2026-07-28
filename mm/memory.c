@@ -5456,7 +5456,12 @@ vm_fault_t set_zero_pte(struct vm_fault *vmf, struct folio *folio,
 
 	if (new_folio) {
 		folio_put(new_folio);
-		return VM_FAULT_RETRY;
+		/*
+		 * Populated in the meantime, so let the access fault again and
+		 * pick up the folio.  Not VM_FAULT_RETRY: the fault lock is
+		 * still held on the way out of here.
+		 */
+		return VM_FAULT_NOPAGE;
 	}
 
 	entry = pte_mkspecial(entry);
