@@ -761,6 +761,11 @@ alloc_tagging_slab_free_hook(struct kmem_cache *s, struct slab *slab, void **p,
 
 #else /* CONFIG_SLAB_OBJ_EXT */
 
+static inline struct slabobj_ext *slab_obj_exts(struct slab *slab)
+{
+	return NULL;
+}
+
 static inline void init_slab_obj_exts(struct slab *slab)
 {
 }
@@ -907,12 +912,7 @@ static inline void memcg_slab_free_hook(struct kmem_cache *s, struct slab *slab,
 	}
 }
 
-#else /* CONFIG_SLAB_OBJ_EXT */
-
-static inline struct slabobj_ext *slab_obj_exts(struct slab *slab)
-{
-	return NULL;
-}
+#else /* CONFIG_MEMCG_KMEM */
 
 static inline struct mem_cgroup *memcg_from_slab_obj(void *ptr)
 {
@@ -938,7 +938,7 @@ static inline void memcg_slab_free_hook(struct kmem_cache *s, struct slab *slab,
 					void **p, int objects)
 {
 }
-#endif /* CONFIG_SLAB_OBJ_EXT */
+#endif /* CONFIG_MEMCG_KMEM */
 
 static inline struct kmem_cache *virt_to_cache(const void *obj)
 {
