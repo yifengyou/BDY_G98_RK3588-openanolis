@@ -229,7 +229,7 @@ bool codetag_unload_module(struct module *mod)
 		return true;
 
 	/* await any module's kfree_rcu() operations to complete */
-	rcu_barrier();
+	kvfree_rcu_barrier();
 
 	mutex_lock(&codetag_lock);
 	list_for_each_entry(cttype, &codetag_types, link) {
