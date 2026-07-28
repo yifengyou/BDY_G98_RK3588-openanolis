@@ -12652,13 +12652,15 @@ perf_event_alloc(struct perf_event_attr *attr, int cpu,
 
 	err = mediated_pmu_account_event(event);
 	if (err)
-		return ERR_PTR(err);
+		goto err_security;
 
 	/* symmetric to unaccount_event() in _free_event() */
 	account_event(event);
 
 	return event;
 
+err_security:
+	security_perf_event_free(event);
 err_callchain_buffer:
 	if (!event->parent) {
 		if (event->attr.sample_type & PERF_SAMPLE_CALLCHAIN)
