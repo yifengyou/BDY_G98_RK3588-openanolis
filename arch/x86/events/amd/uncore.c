@@ -891,7 +891,6 @@ int amd_uncore_l3_ctx_init(struct amd_uncore *uncore, unsigned int cpu)
 		if (boot_cpu_data.x86_model >= 0x6 &&
 			boot_cpu_data.x86_model <= 0xf) {
 			*l3_attr++ = &format_attr_threadmask32.attr;
-			pmu->pmu.attr_update = hygon_uncore_l3_attr_update;
 		} else {
 			*l3_attr++ = &format_attr_threadmask8.attr;
 		}
@@ -915,6 +914,11 @@ int amd_uncore_l3_ctx_init(struct amd_uncore *uncore, unsigned int cpu)
 		.capabilities	= PERF_PMU_CAP_NO_EXCLUDE | PERF_PMU_CAP_NO_INTERRUPT,
 		.module		= THIS_MODULE,
 	};
+
+	if (boot_cpu_data.x86_vendor == X86_VENDOR_HYGON &&
+	    boot_cpu_data.x86 == 0x18 &&
+	    boot_cpu_data.x86_model >= 0x6 && boot_cpu_data.x86_model <= 0xf)
+		pmu->pmu.attr_update = hygon_uncore_l3_attr_update;
 
 	if (perf_pmu_register(&pmu->pmu, pmu->pmu.name, -1)) {
 		free_percpu(pmu->ctx);
