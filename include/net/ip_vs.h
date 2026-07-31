@@ -744,6 +744,7 @@ struct ip_vs_dest {
 	atomic_t		persistconns;	/* persistent connections */
 	__u32			u_threshold;	/* upper threshold */
 	__u32			l_threshold;	/* lower threshold */
+	__u32			l_threshold_val;/* used lower threshold */
 
 	/* for destination cache */
 	spinlock_t		dst_lock;	/* lock of dst_cache */
@@ -1577,6 +1578,8 @@ static inline void ip_vs_dest_put_and_free(struct ip_vs_dest *dest)
 	if (refcount_dec_and_test(&dest->refcnt))
 		kfree(dest);
 }
+
+void ip_vs_dest_update_overload(struct ip_vs_dest *dest, int mode);
 
 /* IPVS sync daemon data and function prototypes
  * (from ip_vs_sync.c)
