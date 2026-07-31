@@ -338,12 +338,6 @@ static int vs_modeset_validate_init(struct vs_drm_private *dev_priv,
 	return vs_framebuffer_init(dev_priv, mode_cmd, vs_fb, obj);
 }
 
-static struct fb_info *
-vs_fbdev_helper_alloc(struct drm_fb_helper *helper)
-{
-	return drm_fb_helper_alloc_info(helper);
-}
-
 static const struct fb_ops s_vs_fbdev_ops = {
 	.owner          = THIS_MODULE,
 	.fb_check_var   = drm_fb_helper_check_var,
@@ -367,7 +361,7 @@ static int vs_fbdev_probe(struct drm_fb_helper *helper,
 	struct drm_device *dev = helper->dev;
 	struct drm_mode_fb_cmd2 mode_cmd;
 	struct drm_gem_object *obj;
-	struct fb_info *info;
+	struct fb_info *info = helper->info;
 	void __iomem *vaddr;
 	size_t obj_size;
 	int err;
@@ -377,14 +371,6 @@ static int vs_fbdev_probe(struct drm_fb_helper *helper,
 	if (helper->fb) {
 		mutex_lock(&dev->struct_mutex);
 		locked = true;
-	}
-
-	/* 1. Create a framebuffer */
-	info = vs_fbdev_helper_alloc(helper);
-	if (IS_ERR(info)) {
-		err = -ENOMEM;
-		pr_err("fb_dev create failed\n");
-		goto err_unlock_dev;
 	}
 
 	pr_debug("fb_dev create success\n");

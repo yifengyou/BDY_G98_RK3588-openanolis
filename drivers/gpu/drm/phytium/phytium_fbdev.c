@@ -48,7 +48,7 @@ phytium_drm_fbdev_create(struct drm_fb_helper *helper, struct drm_fb_helper_surf
 	unsigned int bytes_per_pixel;
 	struct drm_mode_fb_cmd2	mode_cmd = {0};
 	struct phytium_framebuffer *phytium_fb =  NULL;
-	struct fb_info *fbi =  NULL;
+	struct fb_info *fbi =  helper->info;
 	struct drm_framebuffer *fb = NULL;
 	size_t size = 0;
 	int ret = 0;
@@ -73,13 +73,6 @@ phytium_drm_fbdev_create(struct drm_fb_helper *helper, struct drm_fb_helper_surf
 		return -ENOMEM;
 	}
 	mutex_unlock(&dev->struct_mutex);
-
-	fbi = drm_fb_helper_alloc_info(helper);
-	if (IS_ERR(fbi)) {
-		DRM_DEV_ERROR(dev->dev, "Failed to create framebuffer info.");
-		ret = PTR_ERR(fbi);
-		goto out;
-	}
 
 	phytium_fb = phytium_fb_alloc(dev, &mode_cmd, &priv->fbdev_phytium_gem, 1);
 	if (IS_ERR(phytium_fb)) {
