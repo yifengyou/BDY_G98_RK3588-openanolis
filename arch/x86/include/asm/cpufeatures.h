@@ -13,7 +13,7 @@
 /*
  * Defines x86 CPU feature bits
  */
-#define NCAPINTS			24	   /* N 32-bit words worth of info */
+#define NCAPINTS			23	   /* N 32-bit words worth of info */
 #define NBUGINTS			2	   /* N 32-bit bug flags */
 
 /*
@@ -505,8 +505,6 @@
 #define X86_FEATURE_HYGON_CIS_SM3	(22*32 + 1) /* "sm3" SM3 instructions */
 #define X86_FEATURE_HYGON_CIS_SM4	(22*32 + 2) /* "sm4" SM4 instructions */
 
-/* VIA/Cyrix/Centaur-defined CPU features, CPUID level 0xC0000006, word 23 */
-#define X86_FEATURE_ZXPAUSE		(23*32 + 0) /* ZHAOXIN ZXPAUSE */
 #define X86_FEATURE_PREFETCHI		(20*32+20) /* "" Prefetch Data/Instruction to Cache Level */
 #define X86_FEATURE_AVX512_BMM		(20*32+23) /* AVX512 Bit Matrix Multiply instructions */
 

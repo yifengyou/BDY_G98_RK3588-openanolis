@@ -27,7 +27,6 @@ obj-y			+= aperfmperf.o
 obj-y			+= cpuid-deps.o
 obj-y			+= umwait.o
 obj-y 			+= capflags.o powerflags.o
-obj-$(CONFIG_CPU_SUP_ZHAOXIN)	+= zxpause.o
 
 obj-$(CONFIG_X86_LOCAL_APIC)		+= topology.o
 

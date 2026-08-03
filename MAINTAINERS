@@ -24217,11 +24217,6 @@ L:	linux-hwmon@vger.kernel.org
 S:	Maintained
 F:	drivers/hwmon/zhaoxin-cputemp.c
 
-ZHAOXIN ZXPAUSE INSTRUCTION SUPPORT
-M:	LeoLiu-oc <LeoLiu-oc@zhaoxin.com>
-S:	Maintained
-F:	arch/x86/kernel/cpu/zxpause.c
-
 ZHAOXIN PINCTRL DRIVER
 M:	LeoLiu-oc <LeoLiu-oc@zhaoxin.com>
 L:	linux-kernel@vger.kernel.org
