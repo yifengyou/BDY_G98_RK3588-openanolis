@@ -711,6 +711,10 @@ prepare_slab_obj_exts_hook(struct kmem_cache *s, gfp_t flags, void *p)
 	if (flags & __GFP_NO_OBJ_EXT)
 		return NULL;
 
+	/* A vector on a KFENCE page never reaches unaccount_slab(); skip. */
+	if (unlikely(is_kfence_address(p)))
+		return NULL;
+
 	slab = virt_to_slab(p);
 
 #ifdef CONFIG_MEMCG
@@ -862,6 +866,12 @@ static inline void memcg_slab_post_alloc_hook(struct kmem_cache *s,
 
 	for (i = 0; i < size; i++) {
 		if (likely(p[i])) {
+			/* KFENCE: not accounted, refund the pre-alloc charge. */
+			if (unlikely(is_kfence_address(p[i]))) {
+				obj_cgroup_uncharge(objcg, obj_full_size(s));
+				continue;
+			}
+
 			slab = virt_to_slab(p[i]);
 
 			if (!slab_obj_exts(slab) &&

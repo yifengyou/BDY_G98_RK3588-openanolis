@@ -798,8 +798,12 @@ static void *kfence_guarded_alloc(struct kmem_cache *cache, size_t size, gfp_t g
 	slab = page_slab(page);
 	__SetPageSlab(page);
 	slab->slab_cache = cache;
-#ifdef CONFIG_MEMCG_KMEM
-	slab->obj_exts = (unsigned long)&meta->obj_exts | MEMCG_DATA_OBJEXTS;
+#ifdef CONFIG_SLAB_OBJ_EXT
+	/*
+	 * KFENCE objects are excluded from obj_exts accounting; this also
+	 * clears any leftover page->memcg_data from a previous use.
+	 */
+	slab->obj_exts = 0;
 #endif
 #if defined(CONFIG_SLUB)
 	slab->objects = 1;
