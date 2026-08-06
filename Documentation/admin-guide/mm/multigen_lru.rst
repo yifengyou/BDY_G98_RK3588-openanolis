@@ -81,6 +81,29 @@ kills.
 
 The default value ``0`` means disabled.
 
+Page cache protection
+---------------------
+File pages accessed through file descriptors are only protected after
+the multi-gen LRU has collected enough refault evidence, i.e. after a
+hot page cache has been evicted and read back at the cost of I/O.
+
+Writing ``N`` to ``file_min_refs`` promotes file pages accessed at least
+``N`` times to the youngest generation right away, during both the aging
+and the eviction. Each promotion clears the references of a page, so the
+page has to be accessed ``N`` times again before it is promoted once
+more. Anonymous pages are not affected.
+
+The accepted values are ``0``, which disables the promotion, and ``2``
+to the saturation point of the reference counter, which is ``4`` on most
+configurations. ``N=1`` is rejected, as a single access carries no reuse
+information and promoting on it would destroy the age ordering. The
+default value is ``3``.
+
+E.g.,
+::
+
+    echo 3 >/sys/kernel/mm/lru_gen/file_min_refs
+
 Experimental features
 =====================
 ``/sys/kernel/debug/lru_gen`` accepts commands described in the

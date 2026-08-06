@@ -3321,6 +3321,20 @@ static int folio_inc_gen(struct lruvec *lruvec, struct folio *folio, bool promot
 	return new_gen;
 }
 
+/*
+ * Promote file folios accessed at least this many times to the youngest
+ * generation. Accepted values are 0, which disables the promotion, and 2 to
+ * BIT(LRU_REFS_WIDTH).
+ */
+static unsigned int lru_gen_file_min_refs __read_mostly = 3;
+
+static bool should_promote_file_folio(int type, int refs)
+{
+	int min_refs = READ_ONCE(lru_gen_file_min_refs);
+
+	return min_refs && type == LRU_GEN_FILE && refs >= min_refs;
+}
+
 static void update_batch_size(struct lru_gen_mm_walk *walk, struct folio *folio,
 			      int old_gen, int new_gen)
 {
@@ -3923,7 +3937,8 @@ static bool inc_min_seq(struct lruvec *lruvec, int type, int swappiness)
 			VM_WARN_ON_ONCE_FOLIO(folio_is_file_lru(folio) != type, folio);
 			VM_WARN_ON_ONCE_FOLIO(folio_zonenum(folio) != zone, folio);
 
-			if (refs + workingset == BIT(LRU_REFS_WIDTH) + 1)
+			if (refs + workingset == BIT(LRU_REFS_WIDTH) + 1 ||
+			    should_promote_file_folio(type, refs))
 				promote = true;
 
 			new_gen = folio_inc_gen(lruvec, folio, promote);
@@ -4744,7 +4759,8 @@ static bool sort_folio(struct lruvec *lruvec, struct folio *folio, struct scan_c
 	}
 
 	/* protected */
-	if (tier > tier_idx || refs + workingset == BIT(LRU_REFS_WIDTH) + 1) {
+	if (tier > tier_idx || refs + workingset == BIT(LRU_REFS_WIDTH) + 1 ||
+	    should_promote_file_folio(type, refs)) {
 		gen = folio_inc_gen(lruvec, folio, true);
 		list_move(&folio->lru, &lrugen->folios[gen][type][zone]);
 
@@ -5505,6 +5521,31 @@ static ssize_t min_ttl_ms_store(struct kobject *kobj, struct kobj_attribute *att
 
 static struct kobj_attribute lru_gen_min_ttl_attr = __ATTR_RW(min_ttl_ms);
 
+static ssize_t file_min_refs_show(struct kobject *kobj, struct kobj_attribute *attr,
+				  char *buf)
+{
+	return sysfs_emit(buf, "%u\n", READ_ONCE(lru_gen_file_min_refs));
+}
+
+static ssize_t file_min_refs_store(struct kobject *kobj, struct kobj_attribute *attr,
+				   const char *buf, size_t len)
+{
+	unsigned int refs;
+
+	if (kstrtouint(buf, 0, &refs))
+		return -EINVAL;
+
+	/* 0 disables the promotion, otherwise 2 to BIT(LRU_REFS_WIDTH) */
+	if (refs == 1 || refs > BIT(LRU_REFS_WIDTH))
+		return -EINVAL;
+
+	WRITE_ONCE(lru_gen_file_min_refs, refs);
+
+	return len;
+}
+
+static struct kobj_attribute lru_gen_file_min_refs_attr = __ATTR_RW(file_min_refs);
+
 static ssize_t enabled_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	unsigned int caps = 0;
@@ -5574,6 +5615,7 @@ static struct kobj_attribute lru_gen_enabled_attr = __ATTR_RW(enabled);
 
 static struct attribute *lru_gen_attrs[] = {
 	&lru_gen_min_ttl_attr.attr,
+	&lru_gen_file_min_refs_attr.attr,
 	&lru_gen_enabled_attr.attr,
 	NULL
 };
