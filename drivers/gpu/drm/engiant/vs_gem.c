@@ -9,17 +9,10 @@
  */
 
 #include <linux/dma-buf.h>
-#include <drm/drm_prime.h>
 #include <asm/set_memory.h>
-
-#include <drm/drm_file.h>
-#include "drm/vs_drm.h"
 #include <linux/mm.h>
 #include <linux/io.h>
-#include "vs_drv.h"
-#include "vs_gem.h"
 #include <linux/pci.h>
-
 #include <linux/export.h>
 #include <linux/dma-buf.h>
 #include <linux/rbtree.h>
@@ -30,6 +23,10 @@
 #include <drm/drm_framebuffer.h>
 #include <drm/drm_gem.h>
 #include <drm/drm_prime.h>
+
+#include "vs_drv.h"
+#include "vs_gem.h"
+#include "vs_egt_drm.h"
 
 static const struct drm_gem_object_funcs vs_gem_default_funcs;
 
@@ -127,7 +124,7 @@ static void _vs_mmu_free_buf(struct vs_gem_object *vs_obj)
 	}
 
 	nr_pages = vs_obj->size >> PAGE_SHIFT;
-	dc_mmu_unmap_memory(priv->mmu, (u32)vs_obj->iova, nr_pages);
+	egt_dc_mmu_unmap_memory(priv->mmu, (u32)vs_obj->iova, nr_pages);
 }
 #endif
 
@@ -151,7 +148,7 @@ static __maybe_unused void vs_gem_free_buf(struct vs_gem_object *vs_obj)
 	}
 
 	nr_pages = vs_obj->size >> PAGE_SHIFT;
-	dc_mmu_unmap_memory(priv->mmu, (u32)vs_obj->iova, nr_pages);
+	egt_dc_mmu_unmap_memory(priv->mmu, (u32)vs_obj->iova, nr_pages);
 #endif
 
 	if (!vs_obj->get_pages) {
@@ -167,7 +164,7 @@ static __maybe_unused void vs_gem_free_buf(struct vs_gem_object *vs_obj)
 	kvfree(vs_obj->pages);
 }
 
-void vs_gem_free_object(struct drm_gem_object *obj)
+void vs_egt_gem_free_object(struct drm_gem_object *obj)
 {
 	struct vs_gem_object *vs_obj = to_vs_gem_object(obj);
 
@@ -176,9 +173,13 @@ void vs_gem_free_object(struct drm_gem_object *obj)
 
 		drm_mm_remove_node(vs_obj->vram);
 		kfree(vs_obj->vram);
+		vs_obj->vram = NULL;
 	} else if (obj->import_attach) {
 		drm_prime_gem_destroy(obj, vs_obj->sgt);
 	}
+
+	/* Release mmap offset */
+	drm_gem_free_mmap_offset(obj);
 
 	drm_gem_object_release(obj);
 
@@ -216,7 +217,7 @@ err_free:
 	return ERR_PTR(ret);
 }
 
-struct vs_gem_object *vs_gem_create_object(struct drm_device *dev, size_t size)
+struct vs_gem_object *vs_egt_gem_create_object(struct drm_device *dev, size_t size)
 {
 	struct vs_gem_object *vs_obj;
 
@@ -229,24 +230,22 @@ struct vs_gem_object *vs_gem_create_object(struct drm_device *dev, size_t size)
 	return vs_obj;
 }
 
-struct drm_gem_object *vs_gem_create_with_handle(struct drm_device *dev,
+struct drm_gem_object *vs_egt_gem_create_with_handle(struct drm_device *dev,
 						size_t size, struct vs_gem_private *gem_priv)
 {
 	struct vs_gem_object *vs_obj;
 	struct drm_mm_node *node;
-	struct pci_dev *pdev = to_pci_dev(dev->dev);
 	int ret;
 
-	vs_obj = vs_gem_create_object(dev, size);
+	vs_obj = vs_egt_gem_create_object(dev, size);
 	if (IS_ERR(vs_obj))
 		return ERR_PTR(PTR_ERR(vs_obj));
-
 
 	/*create drm mm node*/
 	node = kzalloc(sizeof(*node), GFP_KERNEL);
 	if (!node) {
 		ret = -ENOMEM;
-		return ERR_PTR(ret);
+		goto err_free_vs_obj;
 	}
 
 	mutex_lock(&gem_priv->vram_lock);
@@ -255,32 +254,34 @@ struct drm_gem_object *vs_gem_create_with_handle(struct drm_device *dev,
 	if (ret) {
 		pr_err("Failed to create drm_mm_insert_node\n");
 		kfree(node);
-		return ERR_PTR(ret);
+		goto err_free_vs_obj;
 	}
 
 	/*alloc device memory*/
 	vs_obj->vram = node;
 	vs_obj->dma_addr = vs_obj->vram->start;
 	vs_obj->resv = vs_obj->base.resv;
-	vs_obj->cpu_addr = pci_iomap_range(pdev, 2, vs_obj->dma_addr, pci_resource_len(pdev, 2));
 	vs_obj->offset = vs_obj->dma_addr-(u64)gem_priv->pci_addr;
-
 	pr_debug("alloc device memory address is %pad  offset = %#llx size = %#llx\n",
 			&vs_obj->dma_addr,
 			(unsigned long long)vs_obj->offset,
 			(unsigned long long)vs_obj->vram->size);
 
 	return &vs_obj->base;
+
+err_free_vs_obj:
+	vs_egt_gem_free_object(&vs_obj->base);
+	return ERR_PTR(ret);
 }
 
-u64 vs_gem_get_dev_addr(struct drm_gem_object *obj)
+u64 vs_egt_gem_get_dev_addr(struct drm_gem_object *obj)
 {
 	struct vs_gem_object *vs_obj = to_vs_gem_object(obj);
 
 	return vs_obj->dma_addr;
 }
 
-static int vs_gem_mmap_obj(struct drm_gem_object *obj, struct vm_area_struct *vma)
+static int vs_egt_gem_mmap_obj(struct drm_gem_object *obj, struct vm_area_struct *vma)
 {
 	struct vs_gem_object *vs_obj = to_vs_gem_object(obj);
 	unsigned long vm_size;
@@ -318,7 +319,7 @@ static int vs_gem_mmap_obj(struct drm_gem_object *obj, struct vm_area_struct *vm
 	return ret;
 }
 
-struct sg_table *vs_gem_prime_get_sg_table(struct drm_gem_object *obj)
+struct sg_table *vs_egt_gem_prime_get_sg_table(struct drm_gem_object *obj)
 {
 	struct vs_gem_object *vs_obj = to_vs_gem_object(obj);
 
@@ -331,7 +332,7 @@ static int vs_gem_prime_vmap(__maybe_unused struct drm_gem_object *obj,
 	return 0;
 }
 
-static void vs_gem_prime_vunmap(__maybe_unused struct drm_gem_object *obj,
+static void vs_egt_gem_prime_vunmap(__maybe_unused struct drm_gem_object *obj,
 				__maybe_unused struct iosys_map *map)
 {
 	/* Nothing to do */
@@ -343,10 +344,10 @@ static const struct vm_operations_struct vs_vm_ops = {
 };
 
 static const struct drm_gem_object_funcs vs_gem_default_funcs = {
-	.free = vs_gem_free_object,
-	.get_sg_table = vs_gem_prime_get_sg_table,
+	.free = vs_egt_gem_free_object,
+	.get_sg_table = vs_egt_gem_prime_get_sg_table,
 	.vmap = vs_gem_prime_vmap,
-	.vunmap = vs_gem_prime_vunmap,
+	.vunmap = vs_egt_gem_prime_vunmap,
 	.vm_ops = &vs_vm_ops,
 };
 
@@ -380,15 +381,15 @@ exit_unlock:
 	return err;
 }
 
-int vs_gem_dumb_create(struct drm_file *file, struct drm_device *dev,
+int vs_egt_gem_dumb_create(struct drm_file *file, struct drm_device *dev,
 			struct drm_mode_create_dumb *args)
 {
 	struct vs_drm_private *dev_priv = dev->dev_private;
 
-	return vs_gem_dumb_create_priv(file, dev, dev_priv->gem_priv, args);
+	return vs_egt_gem_dumb_create_priv(file, dev, dev_priv->gem_priv, args);
 }
 
-int vs_gem_dumb_create_priv(struct drm_file *file, struct drm_device *dev,
+int vs_egt_gem_dumb_create_priv(struct drm_file *file, struct drm_device *dev,
 				struct vs_gem_private *gem_priv,
 				struct drm_mode_create_dumb *args)
 {
@@ -408,7 +409,7 @@ int vs_gem_dumb_create_priv(struct drm_file *file, struct drm_device *dev,
 	pr_debug("Buffer width x height is %d %d\n", args->width, args->height);
 
 	/*2. create gem_object and  alloc device memory*/
-	gem_obj = vs_gem_create_with_handle(dev, args->size, gem_priv);
+	gem_obj = vs_egt_gem_create_with_handle(dev, args->size, gem_priv);
 	if (IS_ERR(gem_obj)) {
 		pr_err("Failed to create gem object\n");
 		return PTR_ERR(gem_obj);
@@ -418,20 +419,21 @@ int vs_gem_dumb_create_priv(struct drm_file *file, struct drm_device *dev,
 	ret = drm_gem_handle_create(file, gem_obj, &args->handle);
 	if (ret) {
 		pr_err("drm gem handle create failed\n");
+		drm_gem_object_put(gem_obj);
 		return ret;
 	}
 
 	drm_gem_object_put(gem_obj);
 
-	return PTR_ERR_OR_ZERO(gem_obj);
+	return 0;
 }
 
-struct drm_gem_object *vs_gem_prime_import(struct drm_device *dev, struct dma_buf *dma_buf)
+struct drm_gem_object *vs_egt_gem_prime_import(struct drm_device *dev, struct dma_buf *dma_buf)
 {
 	return drm_gem_prime_import_dev(dev, dma_buf, to_dma_dev(dev));
 }
 
-struct drm_gem_object *vs_gem_prime_import_sg_table(struct drm_device *dev,
+struct drm_gem_object *vs_egt_gem_prime_import_sg_table(struct drm_device *dev,
 							struct dma_buf_attachment *attach,
 							struct sg_table *sgt)
 {
@@ -474,12 +476,11 @@ struct drm_gem_object *vs_gem_prime_import_sg_table(struct drm_device *dev,
 	}
 
 	ret = drm_prime_sg_to_page_array(sgt, vs_obj->pages, npages);
-
 	if (ret)
 		goto err_free_page;
 
 #ifdef CONFIG_ENGIANT_VS_MMU
-	ret = dc_mmu_map_memory(priv->mmu, (u64)vs_obj->pages, npages, &iova, false,
+	ret = egt_dc_mmu_map_memory(priv->mmu, (u64)vs_obj->pages, npages, &iova, false,
 				false);
 	if (ret) {
 		DRM_ERROR("failed to do mmu map.\n");
@@ -497,12 +498,12 @@ struct drm_gem_object *vs_gem_prime_import_sg_table(struct drm_device *dev,
 err_free_page:
 	kvfree(vs_obj->pages);
 err:
-	vs_gem_free_object(&vs_obj->base);
+	vs_egt_gem_free_object(&vs_obj->base);
 
 	return ERR_PTR(ret);
 }
 
-int vs_gem_prime_mmap(struct drm_gem_object *obj, struct vm_area_struct *vma)
+int vs_egt_gem_prime_mmap(struct drm_gem_object *obj, struct vm_area_struct *vma)
 {
 	int ret = 0;
 
@@ -510,10 +511,10 @@ int vs_gem_prime_mmap(struct drm_gem_object *obj, struct vm_area_struct *vma)
 	if (ret < 0)
 		return ret;
 
-	return vs_gem_mmap_obj(obj, vma);
+	return vs_egt_gem_mmap_obj(obj, vma);
 }
 
-int vs_gem_mmap(struct file *filp, struct vm_area_struct *vma)
+int vs_egt_gem_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	struct drm_gem_object *obj;
 	int ret;
@@ -527,64 +528,5 @@ int vs_gem_mmap(struct file *filp, struct vm_area_struct *vma)
 	if (obj->import_attach)
 		return dma_buf_mmap(obj->dma_buf, vma, 0);
 
-	return vs_gem_mmap_obj(obj, vma);
-}
-
-static int query_handle(struct drm_device *dev, struct drm_vs_gem_query_info *info,
-			struct drm_file *file)
-{
-	struct drm_gem_object *obj;
-	struct vs_gem_object *vs_obj;
-
-	obj = drm_gem_object_lookup(file, info->handle);
-	if (!obj) {
-		dev_err(dev->dev, "Failed to GEM object with handle %#x.\n", info->handle);
-		return -ENXIO;
-	}
-	vs_obj = to_vs_gem_object(obj);
-	info->data = vs_obj->iova;
-	drm_gem_object_put(obj);
-
-	return 0;
-}
-
-int vs_gem_query_ioctl(struct drm_device *dev, void *data, struct drm_file *file)
-{
-	struct drm_vs_gem_query_info *info = data;
-
-	switch (info->type) {
-	case VS_GEM_QUERY_HANDLE:
-		return query_handle(dev, info, file);
-	default:
-		dev_err(dev->dev, "Unknown type %#x.\n", info->type);
-		break;
-	}
-	return -EINVAL;
-}
-
-struct vs_gem_object *vs_gem_object_lookup(u32 fd, u32 handle)
-{
-	struct drm_gem_object *bo;
-	struct vs_gem_object *vs_bo = NULL;
-	struct file *flip;
-	struct drm_file *file_priv;
-
-	flip = fget(fd);
-	if (!flip)
-		return NULL;
-
-	file_priv = flip->private_data;
-	if (!file_priv) {
-		fput(flip);
-		return NULL;
-	}
-
-	bo = drm_gem_object_lookup(file_priv, handle);
-	if (bo)
-		vs_bo = to_vs_gem_object(bo);
-
-	drm_gem_object_put(bo);
-
-	fput(flip);
-	return vs_bo;
+	return vs_egt_gem_mmap_obj(obj, vma);
 }

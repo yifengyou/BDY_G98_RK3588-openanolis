@@ -8,6 +8,7 @@
  */
 
 #include <drm/drm_atomic.h>
+#include <drm/drm_vblank.h>
 
 #include "vs_crtc.h"
 #include "vs_gem.h"
@@ -16,9 +17,7 @@
 #include "vs_dc_property.h"
 #include "vs_dc_drm_property.h"
 
-#include <drm/drm_vblank.h>
-
-bool vs_display_get_crtc_scanoutpos(struct drm_device *dev, unsigned int crtc_id,
+bool vs_egt_display_get_crtc_scanoutpos(struct drm_device *dev, unsigned int crtc_id,
 					bool in_vblank_irq, int *vpos, int *hpos, ktime_t *stime,
 					ktime_t *etime, const struct drm_display_mode *mode)
 {
@@ -84,7 +83,7 @@ bool vs_display_get_crtc_scanoutpos(struct drm_device *dev, unsigned int crtc_id
 	return true;
 }
 
-void vs_crtc_destroy(struct drm_crtc *crtc)
+void vs_egt_crtc_destroy(struct drm_crtc *crtc)
 {
 	struct vs_crtc *vs_crtc = to_vs_crtc(crtc);
 
@@ -135,11 +134,11 @@ static void vs_crtc_reset(struct drm_crtc *crtc)
 
 	__drm_atomic_helper_crtc_reset(crtc, &state->base);
 
-	state->sync_mode = VS_SINGLE_DC;
+	state->sync_mode = VS_EGT_SINGLE_DC;
 	state->output_fmt = MEDIA_BUS_FMT_RGB888_1X24;
 	state->encoder_type = DRM_MODE_ENCODER_NONE;
 #ifdef CONFIG_ENGIANT_VS_MMU
-	state->mmu_prefetch = VS_MMU_PREFETCH_DISABLE;
+	state->mmu_prefetch = VS_EGT_MMU_PREFETCH_DISABLE;
 #endif
 
 	vs_crtc->funcs->reset(vs_crtc);
@@ -271,7 +270,7 @@ static struct drm_crtc_state *vs_crtc_atomic_duplicate_state(struct drm_crtc *cr
 	_vs_crtc_duplicate_blob(state, ori_state);
 
 	/* dc properties */
-	vs_dc_duplicate_drm_properties(state->drm_states, ori_state->drm_states,
+	vs_egt_dc_duplicate_drm_properties(state->drm_states, ori_state->drm_states,
 					   &vs_crtc->properties);
 
 	return &state->base;
@@ -309,7 +308,7 @@ static void vs_crtc_atomic_destroy_state(struct drm_crtc *crtc, struct drm_crtc_
 #endif
 
 	/* dc properties */
-	vs_dc_destroy_drm_properties(vs_crtc_state->drm_states, &vs_crtc->properties);
+	vs_egt_dc_destroy_drm_properties(vs_crtc_state->drm_states, &vs_crtc->properties);
 	kfree(vs_crtc_state);
 }
 
@@ -321,8 +320,18 @@ static int vs_crtc_atomic_set_property(struct drm_crtc *crtc, struct drm_crtc_st
 	struct vs_crtc_state *vs_crtc_state = to_vs_crtc_state(state);
 	int ret = 0;
 #ifdef CONFIG_ENGIANT_VS_RCD_BLUR_BRT
-	struct drm_minor *minor = container_of(&dev, struct drm_minor, dev);
-	struct drm_file *file_priv = container_of(&minor, struct drm_file, minor);
+	struct drm_minor *minor = dev->primary;
+	struct drm_file *file_priv = NULL;
+	bool found = false;
+
+	mutex_lock(&dev->filelist_mutex);
+	list_for_each_entry(file_priv, &dev->filelist, lhead) {
+		if (file_priv->minor == minor) {
+			found = true;
+			break;
+		}
+	}
+	mutex_unlock(&dev->filelist_mutex);
 #endif
 
 	if (property == vs_crtc->sync_mode) {
@@ -333,65 +342,65 @@ static int vs_crtc_atomic_set_property(struct drm_crtc *crtc, struct drm_crtc_st
 		vs_crtc_state->sync_enable = val;
 	} else if (property == vs_crtc->prior_gamma_prop) {
 		ret = _vs_crtc_set_property_blob_from_id(dev, &vs_crtc_state->prior_gamma, val,
-							 sizeof(struct drm_vs_gamma_lut),
+							 sizeof(struct drm_vs_egt_gamma_lut),
 							 &vs_crtc_state->prior_gamma_changed);
 	} else if (property == vs_crtc->roi0_gamma_prop) {
 		ret = _vs_crtc_set_property_blob_from_id(dev, &vs_crtc_state->roi0_gamma, val,
-							 sizeof(struct drm_vs_gamma_lut),
+							 sizeof(struct drm_vs_egt_gamma_lut),
 							 &vs_crtc_state->roi0_gamma_changed);
 	} else if (property == vs_crtc->roi1_gamma_prop) {
 		ret = _vs_crtc_set_property_blob_from_id(dev, &vs_crtc_state->roi1_gamma, val,
-							 sizeof(struct drm_vs_gamma_lut),
+							 sizeof(struct drm_vs_egt_gamma_lut),
 							 &vs_crtc_state->roi1_gamma_changed);
 	}
 #ifdef CONFIG_ENGIANT_VS_LTM
 	else if (property == vs_crtc->ltm_luma_get_prop) {
 		ret = _vs_crtc_set_property_blob_from_id(dev, &vs_crtc_state->ltm_luma_get, val,
-							 sizeof(struct drm_vs_ltm_luma_ave),
+							 sizeof(struct drm_vs_egt_ltm_luma_ave),
 							 &vs_crtc_state->ltm_luma_get_changed);
 	} else if (property == vs_crtc->ltm_cd_get_prop) {
 		ret = _vs_crtc_set_property_blob_from_id(dev, &vs_crtc_state->ltm_cd_get, val,
-							 sizeof(struct drm_vs_ltm_cd_get),
+							 sizeof(struct drm_vs_egt_ltm_cd_get),
 							 &vs_crtc_state->ltm_cd_get_changed);
 	} else if (property == vs_crtc->ltm_hist_get_prop) {
 		ret = _vs_crtc_set_property_blob_from_id(dev, &vs_crtc_state->ltm_hist_get, val,
-							 sizeof(struct drm_vs_ltm_hist_get),
+							 sizeof(struct drm_vs_egt_ltm_hist_get),
 							 &vs_crtc_state->ltm_hist_get_changed);
 	}
 #endif
 #ifdef CONFIG_ENGIANT_VS_HISTOGRAM
 	else if (property == vs_crtc->hist_get_prop) {
 		ret = _vs_crtc_set_property_blob_from_id(dev, &vs_crtc_state->hist_get, val,
-							 sizeof(struct drm_vs_hist_get),
+							 sizeof(struct drm_vs_egt_hist_get),
 							 &vs_crtc_state->hist_get_changed);
 	} else if (property == vs_crtc->rgb_hist_get_prop) {
 		ret = _vs_crtc_set_property_blob_from_id(dev, &vs_crtc_state->rgb_hist_get, val,
-							 sizeof(struct drm_vs_rgb_hist_get),
+							 sizeof(struct drm_vs_egt_rgb_hist_get),
 							 &vs_crtc_state->rgb_hist_get_changed);
 	}
 #endif
 #ifdef CONFIG_ENGIANT_VS_RCD
-	else if (property == vs_crtc->rcd_mask_fb) {
+	else if ((property == vs_crtc->rcd_mask_fb) && found) {
 		vs_crtc_state->rcd_mask =
 			drm_framebuffer_lookup(crtc->dev, file_priv, (u32)(val & 0xFFFFFFFF));
 	}
 #endif
 #ifdef CONFIG_ENGIANT_VS_BLUR
-	else if (property == vs_crtc->blur_mask_fb) {
+	else if ((property == vs_crtc->blur_mask_fb) && found) {
 		vs_crtc_state->blur_mask =
 			drm_framebuffer_lookup(crtc->dev, file_priv, (u32)(val & 0xFFFFFFFF));
 	}
 #endif
 #ifdef CONFIG_ENGIANT_VS_BRIGHTNESS
-	else if (property == vs_crtc->brightness_mask_fb) {
+	else if ((property == vs_crtc->brightness_mask_fb) && found) {
 		vs_crtc_state->brightness_mask =
 			drm_framebuffer_lookup(crtc->dev, file_priv, (u32)(val & 0xFFFFFFFF));
 	}
 #endif
 	else {
 		/* dc property */
-		ret = vs_dc_set_drm_property(dev, vs_crtc_state->drm_states, &vs_crtc->properties,
-						 property, val);
+		ret = vs_egt_dc_set_drm_property(dev, vs_crtc_state->drm_states,
+				&vs_crtc->properties, property, val);
 	}
 
 	return ret;
@@ -445,7 +454,7 @@ static int vs_crtc_atomic_get_property(struct drm_crtc *crtc, const struct drm_c
 #endif
 	else {
 		/* dc property */
-		return vs_dc_get_drm_property(vs_crtc_state->drm_states, &vs_crtc->properties,
+		return vs_egt_dc_get_drm_property(vs_crtc_state->drm_states, &vs_crtc->properties,
 						  property, val);
 	}
 	return 0;
@@ -640,7 +649,7 @@ static uint32_t vs_crtc_get_vblank_count(struct drm_crtc *crtc)
 
 static const struct drm_crtc_funcs vs_crtc_funcs = {
 	.set_config = drm_atomic_helper_set_config,
-	.destroy = vs_crtc_destroy,
+	.destroy = vs_egt_crtc_destroy,
 	.page_flip = drm_atomic_helper_page_flip,
 	.reset = vs_crtc_reset,
 	.atomic_duplicate_state = vs_crtc_atomic_duplicate_state,
@@ -723,6 +732,7 @@ static void vs_crtc_atomic_disable(struct drm_crtc *crtc,
 	crtc_old_state = drm_atomic_get_old_crtc_state(old_state, crtc);
 
 	if (crtc->state->mode_changed && !crtc->state->active_changed) {
+		drm_crtc_vblank_put(crtc);
 		drm_crtc_vblank_off(crtc);
 		return;
 	}
@@ -734,8 +744,8 @@ static void vs_crtc_atomic_disable(struct drm_crtc *crtc,
 	if (!completion_done(&vs_crtc->frame_completion))
 		wait_for_completion_timeout(&vs_crtc->frame_completion, 10 * 1000);
 
-	vs_crtc_handle_vblank(crtc);
-	vs_crtc_handle_flip_done(crtc);
+	vs_egt_crtc_handle_vblank(crtc);
+	vs_egt_crtc_handle_flip_done(crtc);
 
 	drm_crtc_vblank_put(crtc);
 	drm_crtc_vblank_off(crtc);
@@ -791,8 +801,8 @@ static bool vs_crtc_get_scanout_position(struct drm_crtc *crtc, bool in_vblank_i
 	struct drm_device *dev = crtc->dev;
 	unsigned int pipe = crtc->index;
 
-	return vs_display_get_crtc_scanoutpos(dev, pipe, in_vblank_irq, vpos, hpos, stime, etime,
-						  mode);
+	return vs_egt_display_get_crtc_scanoutpos(dev, pipe, in_vblank_irq,
+			vpos, hpos, stime, etime, mode);
 }
 
 static const struct drm_crtc_helper_funcs vs_crtc_helper_funcs = {
@@ -806,19 +816,19 @@ static const struct drm_crtc_helper_funcs vs_crtc_helper_funcs = {
 };
 
 static const struct drm_prop_enum_list vs_sync_mode_enum_list[] = {
-	{ VS_SINGLE_DC, "single dc mode" },
-	{ VS_MULTI_DC_PRIMARY, "primary dc for multi dc mode" },
-	{ VS_MULTI_DC_SECONDARY, "secondary dc for multi dc mode" },
+	{ VS_EGT_SINGLE_DC, "single dc mode" },
+	{ VS_EGT_MULTI_DC_PRIMARY, "primary dc for multi dc mode" },
+	{ VS_EGT_MULTI_DC_SECONDARY, "secondary dc for multi dc mode" },
 };
 
 #ifdef CONFIG_ENGIANT_VS_MMU
 static const struct drm_prop_enum_list vs_mmu_prefetch_enum_list[] = {
-	{ VS_MMU_PREFETCH_DISABLE, "disable mmu prefetch" },
-	{ VS_MMU_PREFETCH_ENABLE, "enable mmu prefetch" },
+	{ VS_EGT_MMU_PREFETCH_DISABLE, "disable mmu prefetch" },
+	{ VS_EGT_MMU_PREFETCH_ENABLE, "enable mmu prefetch" },
 };
 #endif
 
-struct vs_crtc *vs_crtc_create(const struct dc_hw_display *display, struct drm_device *drm_dev,
+struct vs_crtc *vs_egt_crtc_create(const struct dc_hw_display *display, struct drm_device *drm_dev,
 				   const struct vs_dc_info *info, u8 index)
 {
 	struct vs_crtc *crtc;
@@ -836,6 +846,8 @@ struct vs_crtc *vs_crtc_create(const struct dc_hw_display *display, struct drm_d
 	if (!crtc)
 		return NULL;
 
+	spin_lock_init(&crtc->slock);
+
 	ret = drm_crtc_init_with_planes(drm_dev, &crtc->base, NULL, NULL, &vs_crtc_funcs,
 					display_info->name ? display_info->name : NULL);
 	if (ret)
@@ -852,7 +864,7 @@ struct vs_crtc *vs_crtc_create(const struct dc_hw_display *display, struct drm_d
 		if (!crtc->sync_mode)
 			goto err_cleanup_crts;
 
-		drm_object_attach_property(&crtc->base.base, crtc->sync_mode, VS_SINGLE_DC);
+		drm_object_attach_property(&crtc->base.base, crtc->sync_mode, VS_EGT_SINGLE_DC);
 	}
 
 	if (display_info->gamma) {
@@ -983,8 +995,8 @@ struct vs_crtc *vs_crtc_create(const struct dc_hw_display *display, struct drm_d
 	}
 #endif
 
-	if (display != NULL && vs_dc_create_drm_properties(drm_dev, &crtc->base.base,
-							   &display->states, &crtc->properties)) {
+	if (display != NULL && vs_egt_dc_create_drm_properties(drm_dev, &crtc->base.base,
+							&display->states, &crtc->properties)) {
 		goto err_cleanup_crts;
 	}
 
@@ -997,7 +1009,7 @@ struct vs_crtc *vs_crtc_create(const struct dc_hw_display *display, struct drm_d
 			goto err_cleanup_crts;
 
 		drm_object_attach_property(&crtc->base.base, crtc->mmu_prefetch,
-					   VS_MMU_PREFETCH_DISABLE);
+					VS_EGT_MMU_PREFETCH_DISABLE);
 	}
 #endif
 
@@ -1014,7 +1026,7 @@ err_free_crtc:
 	return NULL;
 }
 
-void vs_crtc_handle_vblank(struct drm_crtc *crtc)
+void vs_egt_crtc_handle_vblank(struct drm_crtc *crtc)
 {
 	struct vs_crtc *vs_crtc = to_vs_crtc(crtc);
 
@@ -1024,14 +1036,14 @@ void vs_crtc_handle_vblank(struct drm_crtc *crtc)
 	drm_crtc_handle_vblank(crtc);
 }
 
-void vs_crtc_handle_frame_done(struct drm_crtc *crtc)
+void vs_egt_crtc_handle_frame_done(struct drm_crtc *crtc)
 {
 	struct vs_crtc *vs_crtc = to_vs_crtc(crtc);
 
 	complete(&vs_crtc->frame_completion);
 }
 
-void vs_crtc_handle_flip_done_while_hw_done(struct drm_crtc *crtc)
+void vs_egt_crtc_handle_flip_done_while_hw_done(struct drm_crtc *crtc)
 {
 	struct vs_crtc *vs_crtc = to_vs_crtc(crtc);
 	unsigned long flags;
@@ -1048,7 +1060,7 @@ void vs_crtc_handle_flip_done_while_hw_done(struct drm_crtc *crtc)
 	spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
 }
 
-void vs_crtc_handle_flip_done(struct drm_crtc *crtc)
+void vs_egt_crtc_handle_flip_done(struct drm_crtc *crtc)
 {
 	struct vs_crtc *vs_crtc = to_vs_crtc(crtc);
 	unsigned long flags;

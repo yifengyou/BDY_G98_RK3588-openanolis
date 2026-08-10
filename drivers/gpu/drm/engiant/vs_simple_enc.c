@@ -284,7 +284,7 @@ static struct simple_encoder *_vs_simple_encoder_create(struct drm_device *drm_d
 	return simple;
 }
 
-int vs_simple_encoder_pci_init(struct drm_device *drm_dev)
+int vs_egt_simple_encoder_pci_init(struct drm_device *drm_dev)
 {
 	struct pci_dev *pdev = to_pci_dev(drm_dev->dev);
 	struct device *dev = &pdev->dev;
@@ -315,7 +315,7 @@ int vs_simple_encoder_pci_init(struct drm_device *drm_dev)
 	return 0;
 }
 
-void vs_simple_encoder_pci_deinit(struct drm_device *drm_dev)
+void vs_egt_simple_encoder_pci_deinit(struct drm_device *drm_dev)
 {
 	struct pci_dev *pdev = to_pci_dev(drm_dev->dev);
 	struct device *dev = &pdev->dev;
@@ -333,12 +333,6 @@ static const struct component_ops encoder_component_ops = {
 	.bind = encoder_bind,
 	.unbind = encoder_unbind,
 };
-
-static const struct of_device_id simple_encoder_dt_match[] = {
-	{ .compatible = "", },
-	{},
-};
-MODULE_DEVICE_TABLE(of, simple_encoder_dt_match);
 
 static int encoder_probe(struct platform_device *pdev)
 {
@@ -374,12 +368,11 @@ static int encoder_remove(struct platform_device *pdev)
 	return 0;
 }
 
-struct platform_driver simple_encoder_driver = {
+struct platform_driver egt_simple_encoder_driver = {
 	.probe = encoder_probe,
 	.remove = encoder_remove,
 	.driver = {
 		.name = "vs-simple-encoder",
-		.of_match_table = of_match_ptr(simple_encoder_dt_match),
 	},
 };
 

@@ -55,7 +55,7 @@ enum dc_hw_display_id {
 	HW_DISPLAY_NUM,
 };
 
-const struct vs_dc_info *vs_dc_get_chip_info(void);
-const struct vs_output_info *vs_dc_get_output_info(void);
+const struct vs_dc_info *vs_egt_dc_get_chip_info(void);
+const struct vs_output_info *vs_egt_dc_get_output_info(void);
 
 #endif

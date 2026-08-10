@@ -61,7 +61,7 @@ struct vs_drm_private {
 	void __iomem *dp_base;
 	void __iomem *dp_phy_base;
 	void __iomem *mbox_base;
-	void __iomem *intr_statu_base;
+	void __iomem *pci_base;
 #endif
 	void __iomem *dp_phy0_base;
 	void __iomem *dp_phy1_base;
@@ -72,16 +72,23 @@ struct vs_drm_private {
 	struct drm_device *drm_dev;
 	struct drm_gem_object *fbdev_bo;
 	struct drm_fb_helper fbdev_helper;
+#ifdef CONFIG_ENGIANT_VS_DEBUG
+	struct file *dc_capture_fp;
+#endif
 };
 
 
-int vs_drm_iommu_attach_device(struct drm_device *drm_dev, struct device *dev);
+int vs_egt_drm_iommu_attach_device(struct drm_device *drm_dev, struct device *dev);
 
-void vs_drm_iommu_detach_device(struct drm_device *drm_dev, struct device *dev);
+void vs_egt_drm_iommu_detach_device(struct drm_device *drm_dev, struct device *dev);
 
-void vs_drm_update_alignment(struct drm_device *drm_dev, unsigned int pitch_align,
+void vs_egt_drm_update_alignment(struct drm_device *drm_dev, unsigned int pitch_align,
 				 unsigned int addr_align);
-struct vs_gem_private *vs_gem_priv_init(struct drm_device *drm_dev);
+
+struct vs_gem_private *vs_egt_gem_priv_init(struct drm_device *drm_dev);
+
+void vs_egt_gem_priv_deinit(struct drm_device *drm_dev);
+
 static inline struct device *to_dma_dev(struct drm_device *dev)
 {
 	struct vs_drm_private *priv = dev->dev_private;

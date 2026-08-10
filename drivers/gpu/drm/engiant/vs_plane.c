@@ -24,8 +24,8 @@
 #include <drm/drm_fb_dma_helper.h>
 #include <drm/drm_gem_dma_helper.h>
 
-#include <drm/vs_drm.h>
-#include <drm/vs_drm_fourcc.h>
+#include "vs_egt_drm.h"
+#include "vs_egt_drm_fourcc.h"
 #include "vs_crtc.h"
 #include "vs_fb.h"
 #include "vs_gem.h"
@@ -35,9 +35,9 @@
 
 #define BMC_DISPLAY_ADDRESS 0x30000000
 
-#define fourcc_mod_vs_get_type(val) (((val) & DRM_FORMAT_MOD_VS_TYPE_MASK) >> 53)
+#define fourcc_mod_vs_egt_get_type(val) (((val) & DRM_FORMAT_MOD_VS_EGT_TYPE_MASK) >> 53)
 
-void vs_plane_destroy(struct drm_plane *plane)
+void vs_egt_plane_destroy(struct drm_plane *plane)
 {
 	struct vs_plane *vs_plane = to_vs_plane(plane);
 
@@ -169,7 +169,7 @@ static struct drm_plane_state *vs_plane_atomic_duplicate_state(struct drm_plane 
 #endif
 
 	/* dc properties */
-	vs_dc_duplicate_drm_properties(state->drm_states, ori_state->drm_states,
+	vs_egt_dc_duplicate_drm_properties(state->drm_states, ori_state->drm_states,
 					   &vs_plane->properties);
 	return &state->base;
 }
@@ -189,7 +189,7 @@ static void vs_plane_atomic_destroy_state(struct drm_plane *plane, struct drm_pl
 	drm_property_blob_put(vs_plane_state->pvric_clear);
 	drm_property_blob_put(vs_plane_state->pvric_const);
 	/* dc properties */
-	vs_dc_destroy_drm_properties(vs_plane_state->drm_states, &vs_plane->properties);
+	vs_egt_dc_destroy_drm_properties(vs_plane_state->drm_states, &vs_plane->properties);
 	kfree(vs_plane_state);
 }
 
@@ -198,35 +198,47 @@ static int vs_plane_atomic_set_property(struct drm_plane *plane, struct drm_plan
 {
 	struct drm_device *dev = plane->dev;
 	struct vs_plane *vs_plane = to_vs_plane(plane);
-	struct drm_minor *minor = container_of(&dev, struct drm_minor, dev);
-	struct drm_file *file_priv = container_of(&minor, struct drm_file, minor);
+	struct drm_minor *minor = dev->primary;
+	struct drm_file *file_priv = NULL;
 	struct vs_plane_state *vs_plane_state = to_vs_plane_state(state);
 	int ret = 0;
 
 	if (property == vs_plane->ext_layer_fb) {
-		vs_plane_state->fb_ext =
-			drm_framebuffer_lookup(plane->dev, file_priv, (u32)(val & 0xFFFFFFFF));
+		mutex_lock(&dev->filelist_mutex);
+		list_for_each_entry(file_priv, &dev->filelist, lhead) {
+			if (file_priv->minor == minor) {
+				if (vs_plane_state->fb_ext)
+					drm_framebuffer_put(vs_plane_state->fb_ext);
+
+				vs_plane_state->fb_ext =
+					drm_framebuffer_lookup(plane->dev, file_priv,
+							(u32)(val & 0xFFFFFFFF));
+
+				break;
+			}
+		}
+		mutex_unlock(&dev->filelist_mutex);
 	} else if (property == vs_plane->watermark_prop) {
 		ret = _vs_plane_set_property_blob_from_id(dev, &vs_plane_state->watermark, val,
-							  sizeof(struct drm_vs_watermark), NULL);
+						sizeof(struct drm_vs_egt_watermark), NULL);
 	} else if (property == vs_plane->y2r_prop) {
 		ret = _vs_plane_set_property_blob_from_id(dev, &vs_plane_state->y2r_coef, val,
-							  sizeof(struct drm_vs_y2r_config), NULL);
+						sizeof(struct drm_vs_egt_y2r_config), NULL);
 	} else if (property == vs_plane->lut_3d_prop) {
 		ret = _vs_plane_set_property_blob_from_id(dev, &vs_plane_state->lut_3d, val,
-							  sizeof(struct drm_vs_data_block),
-							  &vs_plane_state->lut_3d_changed);
+						sizeof(struct drm_vs_egt_data_block),
+						&vs_plane_state->lut_3d_changed);
 	} else if (property == vs_plane->pvric_clear_prop) {
 		ret = _vs_plane_set_property_blob_from_id(dev, &vs_plane_state->pvric_clear, val,
-							  sizeof(struct drm_vs_pvric_clear),
-							  &vs_plane_state->pvric_color_changed);
+						sizeof(struct drm_vs_egt_pvric_clear),
+						&vs_plane_state->pvric_color_changed);
 	} else if (property == vs_plane->pvric_const_prop) {
 		ret = _vs_plane_set_property_blob_from_id(dev, &vs_plane_state->pvric_const, val,
-							  sizeof(struct drm_vs_pvric_const),
-							  &vs_plane_state->pvric_color_changed);
+						sizeof(struct drm_vs_egt_pvric_const),
+						&vs_plane_state->pvric_color_changed);
 	} else {
 		/* dc property */
-		ret = vs_dc_set_drm_property(dev, vs_plane_state->drm_states,
+		ret = vs_egt_dc_set_drm_property(dev, vs_plane_state->drm_states,
 						 &vs_plane->properties, property, val);
 	}
 
@@ -254,7 +266,7 @@ static int vs_plane_atomic_get_property(struct drm_plane *plane,
 	else if (property == vs_plane->pvric_const_prop)
 		*val = (vs_plane_state->pvric_const) ? vs_plane_state->pvric_const->base.id : 0;
 	else
-		return vs_dc_get_drm_property(vs_plane_state->drm_states, &vs_plane->properties,
+		return vs_egt_dc_get_drm_property(vs_plane_state->drm_states, &vs_plane->properties,
 						  property, val);
 
 	return 0;
@@ -730,7 +742,7 @@ static const struct drm_plane_funcs vs_plane_funcs = {
 	.disable_plane = drm_atomic_helper_disable_plane,
 	.late_register = vs_plane_late_register,
 	.early_unregister = vs_plane_early_unregister,
-	.destroy = vs_plane_destroy,
+	.destroy = vs_egt_plane_destroy,
 	.reset = vs_plane_reset,
 	.atomic_duplicate_state = vs_plane_atomic_duplicate_state,
 	.atomic_destroy_state = vs_plane_atomic_destroy_state,
@@ -773,13 +785,14 @@ static void vs_plane_atomic_update(struct drm_plane *plane,
 	for (i = 0; i < num_planes; i++) {
 		struct vs_gem_object *vs_obj;
 
-		vs_obj = vs_fb_get_gem_obj(fb, i);
+		vs_obj = vs_egt_fb_get_gem_obj(fb, i);
 		vs_plane->dma_addr[i] = BMC_DISPLAY_ADDRESS + vs_obj->offset;
 
-		if ((fourcc_mod_vs_get_type(fb->modifier) == DRM_FORMAT_MOD_VS_TYPE_COMPRESSED) ||
+		if ((fourcc_mod_vs_egt_get_type(fb->modifier) ==
+					DRM_FORMAT_MOD_VS_EGT_TYPE_COMPRESSED) ||
 			fb->modifier == DRM_FORMAT_MOD_VIVANTE_SUPER_TILED_FC)
-			vs_plane_get_dec_tile_status(plane->dev, vs_obj, i, &vs_plane->ts_addr[i],
-							 &vs_plane->ts_dma_buf[i]);
+			vs_egt_plane_get_dec_tile_status(plane->dev, vs_obj, i,
+					&vs_plane->ts_addr[i], &vs_plane->ts_dma_buf[i]);
 	}
 
 	plane_state->status.src = drm_plane_state_src(state);
@@ -805,7 +818,7 @@ static const struct drm_plane_helper_funcs vs_plane_helper_funcs = {
 	.atomic_disable = vs_plane_atomic_disable,
 };
 
-void vs_plane_get_dec_tile_status(struct drm_device *dev, struct vs_gem_object *vs_gem,
+void vs_egt_plane_get_dec_tile_status(struct drm_device *dev, struct vs_gem_object *vs_gem,
 				  u8 plane_id, dma_addr_t *ts_addr, void **ts_dma_buf)
 {
 	struct drm_gem_object *obj;
@@ -815,6 +828,7 @@ void vs_plane_get_dec_tile_status(struct drm_device *dev, struct vs_gem_object *
 	struct vs_drm_private *priv = dev->dev_private;
 	u64 addr_align = priv->addr_alignment;
 	u64 rem;
+	u64 iova;
 
 	/* Return while not the import DMA-buf */
 	if (!vs_gem->base.dma_buf)
@@ -843,9 +857,10 @@ void vs_plane_get_dec_tile_status(struct drm_device *dev, struct vs_gem_object *
 	}
 
 	vs_obj = container_of(obj, struct vs_gem_object, base);
+	iova = vs_obj->iova;
 	drm_gem_object_put(obj);
 
-	*ts_addr = vs_obj->iova + metadata->plane[plane_id].ts_offset;
+	*ts_addr = iova + metadata->plane[plane_id].ts_offset;
 	*ts_dma_buf = metadata->plane[plane_id].ts_dma_buf;
 
 	div64_u64_rem(*ts_addr + 128, addr_align, &rem);
@@ -855,7 +870,7 @@ void vs_plane_get_dec_tile_status(struct drm_device *dev, struct vs_gem_object *
 	}
 }
 
-struct vs_plane *vs_plane_create(const struct dc_hw_plane *hw_plane, struct drm_device *drm_dev,
+struct vs_plane *vs_egt_plane_create(const struct dc_hw_plane *hw_plane, struct drm_device *drm_dev,
 				 const struct vs_dc_info *info, u8 index,
 				 unsigned int possible_crtcs,
 				 const struct vs_plane_funcs *dc_plane_funcs)
@@ -904,9 +919,9 @@ struct vs_plane *vs_plane_create(const struct dc_hw_plane *hw_plane, struct drm_
 		 * add to supported_modifiers by default
 		 */
 		supported_modifiers[n++] = *modifiers;
-		if (fourcc_mod_is_vendor(*modifiers, VS)) {
+		if (fourcc_mod_is_vendor(*modifiers, VS_EGT)) {
 			supported_modifiers[n++] = (*modifiers) |
-						   (DRM_FORMAT_MOD_VS_CUSTOM_FORMAT_ENABLE);
+						   (DRM_FORMAT_MOD_VS_EGT_CUSTOM_FORMAT_ENABLE);
 		}
 		modifiers++;
 	}
@@ -1017,7 +1032,7 @@ struct vs_plane *vs_plane_create(const struct dc_hw_plane *hw_plane, struct drm_
 #endif
 
 	if (hw_plane != NULL &&
-		vs_dc_create_drm_properties(drm_dev, &plane->base.base, &hw_plane->states,
+		vs_egt_dc_create_drm_properties(drm_dev, &plane->base.base, &hw_plane->states,
 					&plane->properties)) {
 		goto error_cleanup_plane;
 	}

@@ -179,16 +179,17 @@ static void egt_dp_pixel_pll_cfg(struct egt_displayport *dp,
 	}
 }
 
-static int egt_dp_try_pll_config(struct egt_dc_pll_config *config,
+static u32 egt_dp_try_pll_config(struct egt_dc_pll_config *config,
 				struct egt_displayport *dp, uint8_t div_clk,
-				uint8_t N0, u32 M, u64 expect_pll_out2)
+				uint8_t N0, u64 expect_pll_out2)
 {
 	const s32 REF_KHZ = 25000;
 	const u64 F_SCALE = 16777216;
 	u8 N1 = 0;
 	u8 N2 = 0;
-	u32 F = 0;
-	u32 flags = 0;
+	u64 F = 0;
+	u64 M = 0;
+	u32 M_rem = 0;
 	u64 vco_component = 0;
 	u64 vco_khz = 0;
 	u64 pll_out1_khz = 0;
@@ -196,39 +197,48 @@ static int egt_dp_try_pll_config(struct egt_dc_pll_config *config,
 
 	for (N2 = 0; N2 <= 15; N2++) {
 		for (N1 = 0; N1 <= 15; N1++) {
-			vco_component = ((u64) M * F_SCALE + F);
+			M = div_u64_rem((expect_pll_out2 * N0 * (N1+1) * (N2+1)),
+					REF_KHZ, &M_rem);
+			if (M < 40 || M > 4095)
+				continue;
+
+			F = div_u64(M_rem * F_SCALE, REF_KHZ);
+			vco_component = (M * F_SCALE + F);
 			vco_khz = div_u64(div_u64((REF_KHZ * vco_component), N0), F_SCALE);
+			if (vco_khz < 950000 || vco_khz > 3800000)
+				continue;
+
 			pll_out1_khz = div_u64(vco_khz, (N1 + 1));
 			auto_pll_out2 = div_u64(pll_out1_khz, (N2 + 1));
-			flags = (vco_khz >= 950000 && vco_khz <= 3800000);
-			if (auto_pll_out2 == expect_pll_out2 && flags) {
-				config->N0_cfg = N0;
-				config->M_cfg = M;
-				config->F_cfg = F;
-				config->N1_cfg = N1;
-				config->N2_cfg = N2;
-				config->div_clk = div_clk;
 
-				pr_debug("PLL Configuration:\n");
-				pr_debug("  expect_pll_out2 is %llu\n",
-						(unsigned long long)expect_pll_out2);
-				pr_debug("  auto_pll_out2 is %llu\n",
-						(unsigned long long)auto_pll_out2);
-				pr_debug("  vco_khz: %llu (0x%llx)\n",
-						(unsigned long long)vco_khz,
-						(unsigned long long)vco_khz);
-				pr_debug("  N0_cfg: %u (0x%02x)\n",
-						config->N0_cfg, config->N0_cfg);
-				pr_debug("  M_cfg: %u (0x%03x)\n", config->M_cfg, config->M_cfg);
-				pr_debug("  F_cfg: %u (0x%06x)\n", config->F_cfg, config->F_cfg);
-				pr_debug("  N1_cfg: %u (0x%x)\n", config->N1_cfg, config->N1_cfg);
-				pr_debug("  N2_cfg: %u (0x%x)\n", config->N2_cfg, config->N2_cfg);
-				pr_debug("  div_clk: %u (0x%x)\n", config->div_clk,
-						config->div_clk);
+			if (abs_diff(auto_pll_out2, expect_pll_out2) > 100)
+				continue;
 
-				egt_dp_pixel_pll_cfg(dp, config);
-				return 1;
-			}
+			config->N0_cfg = N0;
+			config->M_cfg = M;
+			config->F_cfg = F;
+			config->N1_cfg = N1;
+			config->N2_cfg = N2;
+			config->div_clk = div_clk;
+
+			egt_dp_pixel_pll_cfg(dp, config);
+
+			pr_debug("PLL Configuration:\n");
+			pr_debug("  expect_pll_out2 is %llu\n",
+					(unsigned long long)expect_pll_out2);
+			pr_debug("  auto_pll_out2 is %llu\n",
+					(unsigned long long)auto_pll_out2);
+			pr_debug("  vco_khz: %llu (0x%llx)\n",
+					(unsigned long long)vco_khz,
+					(unsigned long long)vco_khz);
+			pr_debug("  N0_cfg: %u (0x%02x)\n", config->N0_cfg, config->N0_cfg);
+			pr_debug("  M_cfg: %u (0x%03x)\n", config->M_cfg, config->M_cfg);
+			pr_debug("  F_cfg: %u (0x%06x)\n", config->F_cfg, config->F_cfg);
+			pr_debug("  N1_cfg: %u (0x%x)\n", config->N1_cfg, config->N1_cfg);
+			pr_debug("  N2_cfg: %u (0x%x)\n", config->N2_cfg, config->N2_cfg);
+			pr_debug("  div_clk: %u (0x%x)\n", config->div_clk, config->div_clk);
+
+			return 1;
 		}
 	}
 	return 0;
@@ -239,20 +249,23 @@ static void egt_dp_calculate_pll_config(int freq_khz,
 {
 	u8 div_clk = 0;
 	u8 N0 = 0;
-	u32 M = 0;
 	u32 ret = 0;
 	u64 expect_pll_out2 = 0;
+	u32 dp_clock_flag = 0;
+
+	dp_clock_flag = egt_dp_read(DP_SOURCE_CLOCK_FLAG, dp);
+	if (((dp_clock_flag & EGT_TX_CLK_FLAG_MASK) == HALF_CLOCK_90) && (freq_khz > 90000))
+			freq_khz = freq_khz / 2;
+	if (((dp_clock_flag & EGT_TX_CLK_FLAG_MASK) == HALF_CLOCK_110) && (freq_khz > 110000))
+			freq_khz = freq_khz / 2;
 
 	for (div_clk = 1; div_clk <= 127; div_clk++) {
 		expect_pll_out2 = (u64)(freq_khz / 4) * div_clk;
 		for (N0 = 1; N0 <= 127; N0++) {
-			for (M = 40; M <= 4095; M++) {
-				ret = egt_dp_try_pll_config(config, dp,
-						div_clk, N0, M, expect_pll_out2);
-				if (ret) {
-					return;
-				}
-			}
+			ret = egt_dp_try_pll_config(config, dp,
+					div_clk, N0, expect_pll_out2);
+			if (ret)
+				return;
 		}
 	}
 	pr_err("the best pll configuration was not found\n");

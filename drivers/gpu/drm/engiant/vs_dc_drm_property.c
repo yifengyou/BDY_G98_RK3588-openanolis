@@ -4,13 +4,13 @@
  */
 
 #include "vs_dc_drm_property.h"
+#include "vs_egt_drm.h"
+#include "vs_dc.h"
+#include "vs_dc_property.h"
 
 #include <drm/drm_device.h>
 #include <drm/drm_mode_object.h>
 #include <drm/drm_property.h>
-#include "drm/vs_drm.h"
-#include "vs_dc.h"
-#include "vs_dc_property.h"
 
 static int _set_property_blob_from_id(struct drm_device *dev, struct drm_property_blob **blob,
 					  uint64_t blob_id, size_t expected_size,
@@ -57,7 +57,7 @@ static int _set_property_blob_from_id(struct drm_device *dev, struct drm_propert
 	return 0;
 }
 
-struct drm_property *vs_dc_create_drm_property(struct drm_device *drm_dev,
+struct drm_property *vs_egt_dc_create_drm_property(struct drm_device *drm_dev,
 						   struct drm_mode_object *obj,
 						   const struct vs_dc_property_proto *proto)
 {
@@ -106,7 +106,7 @@ struct drm_property *vs_dc_create_drm_property(struct drm_device *drm_dev,
 	return property;
 }
 
-int vs_dc_create_drm_properties(struct drm_device *dev, struct drm_mode_object *obj,
+int vs_egt_dc_create_drm_properties(struct drm_device *dev, struct drm_mode_object *obj,
 				const struct vs_dc_property_state_group *dc_states,
 				struct vs_drm_property_group *properties)
 {
@@ -114,7 +114,7 @@ int vs_dc_create_drm_properties(struct drm_device *dev, struct drm_mode_object *
 
 	for (i = 0; i < dc_states->num; i++) {
 		properties->items[i].data =
-			vs_dc_create_drm_property(dev, obj, dc_states->items[i].proto);
+			vs_egt_dc_create_drm_property(dev, obj, dc_states->items[i].proto);
 		if (!properties->items[i].data)
 			return -1;
 		properties->num++;
@@ -123,7 +123,7 @@ int vs_dc_create_drm_properties(struct drm_device *dev, struct drm_mode_object *
 	return 0;
 }
 
-void vs_dc_duplicate_drm_properties(struct vs_drm_property_state *new_states,
+void vs_egt_dc_duplicate_drm_properties(struct vs_drm_property_state *new_states,
 					const struct vs_drm_property_state *old_states,
 					const struct vs_drm_property_group *properties)
 {
@@ -143,7 +143,7 @@ void vs_dc_duplicate_drm_properties(struct vs_drm_property_state *new_states,
 	}
 }
 
-void vs_dc_destroy_drm_properties(struct vs_drm_property_state *states,
+void vs_egt_dc_destroy_drm_properties(struct vs_drm_property_state *states,
 				  const struct vs_drm_property_group *properties)
 {
 	u32 i;
@@ -158,7 +158,7 @@ void vs_dc_destroy_drm_properties(struct vs_drm_property_state *states,
 	}
 }
 
-int vs_dc_set_drm_property(struct drm_device *dev, struct vs_drm_property_state *states,
+int vs_egt_dc_set_drm_property(struct drm_device *dev, struct vs_drm_property_state *states,
 			   const struct vs_drm_property_group *properties,
 			   const struct drm_property *property, u64 val)
 {
@@ -212,7 +212,7 @@ int vs_dc_set_drm_property(struct drm_device *dev, struct vs_drm_property_state 
 	return -EINVAL;
 }
 
-int vs_dc_get_drm_property(const struct vs_drm_property_state *states,
+int vs_egt_dc_get_drm_property(const struct vs_drm_property_state *states,
 			   const struct vs_drm_property_group *properties,
 			   const struct drm_property *property, u64 *val)
 {
@@ -250,7 +250,7 @@ int vs_dc_get_drm_property(const struct vs_drm_property_state *states,
 	return -EINVAL;
 }
 
-void vs_dc_update_drm_properties_to_dc(struct vs_dc *dc, u8 hw_id,
+void vs_egt_dc_update_drm_properties_to_dc(struct vs_dc *dc, u8 hw_id,
 					   const struct vs_drm_property_state *drm_states,
 					   u32 registered_drm_properties_num,
 					   struct vs_dc_property_state_group *dc_states,
@@ -278,7 +278,7 @@ void vs_dc_update_drm_properties_to_dc(struct vs_dc *dc, u8 hw_id,
 				new_data = state->value.blob->data;
 				size = state->value.blob->length;
 			}
-			vs_dc_blob_property_update(&dc->hw, hw_id, hw_state, new_data, size,
+			vs_egt_dc_blob_property_update(&dc->hw, hw_id, hw_state, new_data, size,
 						   obj_state);
 			break;
 		case VS_DC_PROPERTY_ARRAY:
@@ -286,24 +286,24 @@ void vs_dc_update_drm_properties_to_dc(struct vs_dc *dc, u8 hw_id,
 				new_data = state->value.blob->data;
 				size = state->value.blob->length;
 			}
-			vs_dc_array_property_update(&dc->hw, hw_id, hw_state, new_data, size,
+			vs_egt_dc_array_property_update(&dc->hw, hw_id, hw_state, new_data, size,
 							obj_state);
 			break;
 		case VS_DC_PROPERTY_BOOL:
-			vs_dc_bool_property_update(&dc->hw, hw_id, hw_state, state->value.boolean,
-						   obj_state);
+			vs_egt_dc_bool_property_update(&dc->hw, hw_id, hw_state,
+					state->value.boolean, obj_state);
 			break;
 		case VS_DC_PROPERTY_ENUM:
-			vs_dc_enum_property_update(&dc->hw, hw_id, hw_state, state->value.enumval,
-						   obj_state);
+			vs_egt_dc_enum_property_update(&dc->hw, hw_id, hw_state,
+					state->value.enumval, obj_state);
 			break;
 		case VS_DC_PROPERTY_BITMASK:
-			vs_dc_bitmask_property_update(&dc->hw, hw_id, hw_state, state->value.u32val,
-							  obj_state);
+			vs_egt_dc_bitmask_property_update(&dc->hw, hw_id, hw_state,
+					state->value.u32val, obj_state);
 			break;
 		case VS_DC_PROPERTY_RANGE:
-			vs_dc_range_property_update(&dc->hw, hw_id, hw_state, state->value.u64val,
-							obj_state);
+			vs_egt_dc_range_property_update(&dc->hw, hw_id, hw_state,
+					state->value.u64val, obj_state);
 			break;
 		default:
 			pr_err("%s: Unsupport propety type %#x\n", __func__, proto->type);
@@ -312,8 +312,9 @@ void vs_dc_update_drm_properties_to_dc(struct vs_dc *dc, u8 hw_id,
 	}
 }
 
-struct vs_drm_property_state *vs_dc_get_drm_property_state(struct vs_drm_property_state *states,
-							   u32 num, const char *name)
+struct vs_drm_property_state *
+vs_egt_dc_get_drm_property_state(struct vs_drm_property_state *states,
+				   u32 num, const char *name)
 {
 	u32 i;
 
@@ -332,10 +333,10 @@ struct vs_drm_property_state *vs_dc_get_drm_property_state(struct vs_drm_propert
 	return NULL;
 }
 
-bool vs_dc_check_crtc_std_property(struct vs_dc *dc, u8 hw_id, struct drm_crtc *crtc)
+bool vs_egt_dc_check_crtc_std_property(struct vs_dc *dc, u8 hw_id, struct drm_crtc *crtc)
 {
 	struct drm_crtc_state *state = crtc->state;
-	const struct dc_hw_display *hw_display = vs_dc_hw_get_display(&dc->hw, hw_id);
+	const struct dc_hw_display *hw_display = vs_egt_dc_hw_get_display(&dc->hw, hw_id);
 	const struct vs_display_info *display_info = hw_display->info;
 
 	/* check ctm */
@@ -349,7 +350,7 @@ bool vs_dc_check_crtc_std_property(struct vs_dc *dc, u8 hw_id, struct drm_crtc *
 	return true;
 }
 
-bool vs_dc_check_drm_property(struct vs_dc *dc, u8 hw_id,
+bool vs_egt_dc_check_drm_property(struct vs_dc *dc, u8 hw_id,
 				  const struct vs_drm_property_state *states, u32 num,
 				  const void *obj_state)
 {
@@ -469,20 +470,20 @@ static const void *__get_drm_property(const struct vs_drm_property_state *states
 	return ptr;
 }
 
-const void *vs_dc_drm_plane_property_get(const struct vs_plane_state *plane, const char *name,
+const void *vs_egt_dc_drm_plane_property_get(const struct vs_plane_state *plane, const char *name,
 					 u32 *out_len)
 {
 	return __get_drm_property(plane->drm_states, VS_DC_MAX_PROPERTY_NUM, name, out_len);
 }
 
-const void *vs_dc_drm_crtc_property_get(const struct vs_crtc_state *crtc, const char *name,
+const void *vs_egt_dc_drm_crtc_property_get(const struct vs_crtc_state *crtc, const char *name,
 					u32 *out_len)
 {
 	return __get_drm_property(crtc->drm_states, VS_DC_MAX_PROPERTY_NUM, name, out_len);
 }
 
 #ifdef CONFIG_ENGIANT_VS_WRITEBACK
-const void *vs_dc_drm_connector_property_get(const struct vs_writeback_connector_state *wb,
+const void *vs_egt_dc_drm_connector_property_get(const struct vs_writeback_connector_state *wb,
 						 const char *name, u32 *out_len)
 {
 	return __get_drm_property(wb->drm_states, VS_DC_MAX_PROPERTY_NUM, name, out_len);

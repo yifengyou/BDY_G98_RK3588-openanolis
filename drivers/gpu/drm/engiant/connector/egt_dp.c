@@ -194,32 +194,21 @@ struct drm_encoder *egt_dp_best_encoder(struct drm_connector *connector)
 
 int egt_dp_get_modes(struct drm_connector *connector)
 {
+	u32 dp_clock_flag = 0;
 	int edid_cnt = 0;
 	int i = 0;
 	struct drm_device *dev = connector->dev;
-	struct egt_displayport *dp = container_of(connector, struct egt_displayport, connector);
+	struct egt_displayport *dp =
+			container_of(connector, struct egt_displayport, connector);
 	struct edid *edid = NULL;
 	struct drm_display_mode *mode = NULL;
 	struct drm_display_mode egt_noedid_modes[] = {
 		{ DRM_MODE("1024x768", DRM_MODE_TYPE_DRIVER, 65000, 1024, 1048,
 					1184, 1344, 0, 768, 771, 777, 806, 0,
 					(0x1 << 0x1) | (0x1 << 3)), },/* 1024x768@60 */
-		{ DRM_MODE("1280x720", DRM_MODE_TYPE_DRIVER, 74250, 1280, 1390,
-					1430, 1650, 0, 720, 725, 730, 750, 0,
-					0x1 | (0x1 << 2)), },/* 1280x720@60 */
-		{ DRM_MODE("1280x1024", DRM_MODE_TYPE_DRIVER, 108000, 1280, 1328,
-					1440, 1688, 0, 1024, 1025, 1028, 1066, 0,
-					0x1 | (0x1 << 2)), },/* 1280x1024@60 */
-		{ DRM_MODE("1440x900", DRM_MODE_TYPE_DRIVER, 106500, 1440, 1520,
-					1672, 1904, 0, 900, 903, 909, 934, 0,
-					(0x1 << 0x1) | (0x1 << 2)), },/* 1440x900@60 */
-		{ DRM_MODE("1680x1050", DRM_MODE_TYPE_DRIVER, 146250, 1680, 1784,
-					1960, 2240, 0, 1050, 1053, 1059, 1089, 0,
-					(0x1 << 0x1) | (0x1 << 2)), },/* 1680x1050@60 */
-		{ DRM_MODE("1920x1080", DRM_MODE_TYPE_DRIVER, 148500, 1920, 2008,
-					2052, 2200, 0, 1080, 1084, 1089, 1125, 0,
-					0x1 | (0x1 << 2)), },/* 1920x1080@60 */
 	};
+
+	dp_clock_flag = egt_dp_read(DP_SOURCE_CLOCK_FLAG, dp);
 
 	if (dp->connected) {
 		pr_debug("get edid from sink.\n");
@@ -228,6 +217,14 @@ int egt_dp_get_modes(struct drm_connector *connector)
 		if (edid) {
 			drm_connector_update_edid_property(connector, edid);
 			edid_cnt = drm_add_edid_modes(connector, edid);
+			list_for_each_entry(mode, &connector->probed_modes, head) {
+				if (((dp_clock_flag & EGT_TX_CLK_FLAG_MASK) ==
+					HALF_CLOCK_90_VISIBLE) && (mode->clock > 90000))
+					mode->clock = mode->clock / 2;
+				if (((dp_clock_flag & EGT_TX_CLK_FLAG_MASK) ==
+					HALF_CLOCK_110_VISIBLE) && (mode->clock > 110000))
+					mode->clock = mode->clock / 2;
+			}
 			dp->edid_present = true;
 			kfree(edid);
 		}
@@ -269,6 +266,9 @@ int egt_dp_mode_valid(__maybe_unused struct drm_connector *connector,
 					  struct drm_display_mode *mode)
 {
 	int i = 0;
+	u32 dp_clock_flag = 0;
+	struct egt_displayport *dp =
+			container_of(connector, struct egt_displayport, connector);
 	struct egt_dp_supported_mode supported_modes[] = {
 		{640, 480},
 		{800, 600},
@@ -277,14 +277,24 @@ int egt_dp_mode_valid(__maybe_unused struct drm_connector *connector,
 		{1280, 720},
 		{1280, 800},
 		{1440, 900},
+		{1600, 900},
 		{1680, 1050},
 		{1920, 1080},
 		{1920, 1200},
 	};
 
+	dp_clock_flag = egt_dp_read(DP_SOURCE_CLOCK_FLAG, dp);
+
 	for (i = 0; i < ARRAY_SIZE(supported_modes); i++) {
 		if (mode->hdisplay == supported_modes[i].width &&
-			mode->vdisplay == supported_modes[i].height) {
+			mode->vdisplay == supported_modes[i].height &&
+			mode->clock <= EGT_TX_MAX_CLOCK) {
+			if (((dp_clock_flag & EGT_TX_CLK_FLAG_MASK) ==
+				CLOCK_90_LIMIT) && (mode->clock > 90000))
+				continue;
+			if (((dp_clock_flag & EGT_TX_CLK_FLAG_MASK) ==
+				CLOCK_110_LIMIT) && (mode->clock > 110000))
+				continue;
 			pr_debug("valid mode: [%dx%d], clock: %d\n",
 					 mode->hdisplay, mode->vdisplay, mode->clock);
 			return MODE_OK;
@@ -426,7 +436,7 @@ void egt_dp_atomic_mode_set(struct drm_encoder *encoder,
 				__maybe_unused struct drm_connector_state *connector_state)
 {
 	struct egt_displayport *dp = container_of(encoder, struct egt_displayport, encoder);
-	struct drm_display_mode *mode = &crtc_state->mode;
+	struct drm_display_mode *mode = NULL;
 	struct drm_plane *plane = NULL;
 	const struct drm_format_info *format = NULL;
 	int max_rate = dp->train_cfg.max_rate;
@@ -434,6 +444,13 @@ void egt_dp_atomic_mode_set(struct drm_encoder *encoder,
 	u8 max_lanes = dp->train_cfg.max_lanes;
 	u8 bpp = dp->tx_cfg.bpp;
 	u8 bw_code = EGT_TX_LINK_BW_2_7;
+
+	if (!crtc_state || !crtc_state->crtc) {
+		dev_err(dp->dev, "error crtc_state\n");
+		return;
+	}
+
+	mode = &crtc_state->mode;
 
 	pr_debug("mode - [%d x %d], clock = %d, max_rate = %d\n",
 			 mode->hdisplay, mode->vdisplay, mode->clock, max_rate);
@@ -457,9 +474,6 @@ void egt_dp_atomic_mode_set(struct drm_encoder *encoder,
 	egt_dp_set_phy(dp, bw_code);
 
 	/* Get current plane format info */
-	if (!crtc_state || !crtc_state->crtc)
-		dev_err(dp->dev, "error! get plane info\n");
-
 	drm_for_each_plane_mask(plane, crtc_state->crtc->dev, crtc_state->plane_mask) {
 		if (plane->state && plane->state->fb) {
 			dev_dbg(dp->dev, "plane[%d] format:%p\n",
@@ -490,6 +504,9 @@ int egt_dp_atomic_check(struct drm_encoder *encoder, struct drm_crtc_state *crtc
 	struct vs_crtc_state *state = to_vs_crtc_state(crtc_state);
 	struct drm_connector *connector = conn_state->connector;
 	int ret = 0;
+
+	if (!state)
+		return -EIO;
 
 	state->encoder_type = encoder->encoder_type;
 	state->output_id = 0;

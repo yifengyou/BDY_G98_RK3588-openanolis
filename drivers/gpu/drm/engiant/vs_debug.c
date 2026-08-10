@@ -50,7 +50,7 @@ struct _vs_debug_info {
 static struct _vs_debug_info debug_cache[512];
 static u32 index;
 
-int vs_debug_file_create(struct file **fp)
+int vs_egt_debug_file_create(struct file **fp)
 {
 	struct timespec64 ts;
 	ktime_t kt;
@@ -86,16 +86,16 @@ int vs_debug_file_create(struct file **fp)
 	return 0;
 }
 
-void vs_debug_file_close(struct file **fp)
+void vs_egt_debug_file_close(struct file **fp)
 {
 	if (*fp)
 		filp_close(*fp, NULL);
 }
 
-int vs_debug_reset(struct file **fp)
+int vs_egt_debug_reset(struct file **fp)
 {
-	vs_debug_file_close(fp);
-	if (vs_debug_file_create(fp)) {
+	vs_egt_debug_file_close(fp);
+	if (vs_egt_debug_file_create(fp)) {
 		pr_err("Failed to reset the vs debug file: ret:%d\n", -1);
 		return -1;
 	}
@@ -218,7 +218,7 @@ static void _flush_intr_to_disk(struct file *fp, const char *event,
 	if (pos != NULL) {
 		strscpy(result + index, buffer, pos - buffer);
 		index += pos - buffer;
-		strscpy(result + index, "irq_dpu");
+		strscpy(result + index, "irq_dpu", MAX_DC_INTR_EVENT_SIZE - index);
 		index += strlen("irq_dpu");
 		temp = pos + strlen("dcreg");
 	}
@@ -326,7 +326,7 @@ static void _flush_to_disk(struct file *fp)
 	index = 0;
 }
 
-void vs_debug_dump_capture(struct file *fp, u32 addr, u32 value, bool is_read)
+void vs_egt_debug_dump_capture(struct file *fp, u32 addr, u32 value, bool is_read)
 {
 	if (irqs_disabled()) {
 		if (index < 512) {
@@ -348,8 +348,9 @@ void vs_debug_dump_capture(struct file *fp, u32 addr, u32 value, bool is_read)
 	}
 }
 
-void vs_debug_dump_interrupt(struct file *fp, const char *event, enum vs_debug_intr_partition part,
-				 bool multi_dest, u8 intr_dest)
+void vs_egt_debug_dump_interrupt(struct file *fp, const char *event,
+				enum vs_debug_intr_partition part,
+				bool multi_dest, u8 intr_dest)
 {
 	size_t len = 0;
 

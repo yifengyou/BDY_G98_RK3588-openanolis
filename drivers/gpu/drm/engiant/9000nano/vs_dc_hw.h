@@ -6,14 +6,13 @@
 #ifndef __VS_DC_HW_H__
 #define __VS_DC_HW_H__
 
-#include <drm/vs_drm.h>
 #include <linux/io.h>
 
 #include "vs_dc_reg.h"
 #include "vs_dc_info.h"
 #include "vs_simple_enc.h"
 #include "vs_dc_property.h"
-
+#include "vs_egt_drm.h"
 #ifdef CONFIG_ENGIANT_VS_DEBUG
 #include "vs_debug.h"
 #endif
@@ -99,11 +98,11 @@
 
 #ifdef CONFIG_ENGIANT_VS_DEBUG
 
-#define VS_INTR_EVENT_DEBUG()                                                                      \
-	do {                                                                                       \
-		vs_debug_dump_interrupt(hw->dc_capture_fp, intr_event, (0), (hw->info->intr_dest), \
-					(0));                                                      \
-		pr_err("%s: received %s\n", __func__, intr_event);                                 \
+#define VS_INTR_EVENT_DEBUG()                                                              \
+	do {                                                                               \
+		vs_egt_debug_dump_interrupt(hw->dc_capture_fp,                             \
+				intr_event, (0), (hw->info->intr_dest), (0));              \
+		pr_err("%s: received %s\n", __func__, intr_event);                         \
 	} while (0)
 
 #else
@@ -249,7 +248,7 @@ struct dc_hw_fb {
 };
 
 struct dc_hw_position {
-	struct drm_vs_rect rect[2];
+	struct drm_vs_egt_rect rect[2];
 	bool dirty;
 	bool enable;
 };
@@ -312,8 +311,8 @@ struct dc_hw_gamma {
 struct dc_hw_crc {
 	bool enable;
 	u8 pos;
-	struct drm_vs_color seed;
-	struct drm_vs_color result;
+	struct drm_vs_egt_color seed;
+	struct drm_vs_egt_color result;
 };
 
 struct dc_hw_plane_qos {
@@ -328,19 +327,19 @@ struct dc_hw_disp_qos {
 struct dc_hw_disp_crc {
 	bool enable;
 	u8 pos;
-	struct drm_vs_color seed[MAX_CRC_CORE_NUM];
-	struct drm_vs_color result[MAX_CRC_CORE_NUM];
+	struct drm_vs_egt_color seed[MAX_CRC_CORE_NUM];
+	struct drm_vs_egt_color result[MAX_CRC_CORE_NUM];
 };
 
 struct dc_hw_pattern_entry {
 	bool enable;
 	u8 index;
 	u64 color;
-	struct drm_vs_rect rect;
+	struct drm_vs_egt_rect rect;
 };
 
 struct dc_hw_pattern {
-	struct dc_hw_pattern_entry pattern_entry[VS_MAX_COLOR_BAR_NUM];
+	struct dc_hw_pattern_entry pattern_entry[VS_EGT_MAX_COLOR_BAR_NUM];
 };
 
 struct dc_hw_interrupt_status {
@@ -435,56 +434,58 @@ static inline u32 dc_read(struct dc_hw *hw, u32 reg)
 	//pr_debug("%s: 0x%08x = 0x%08x\n", __func__, reg, value);
 
 #ifdef CONFIG_ENGIANT_VS_DEBUG
-	vs_debug_dump_capture(hw->dc_capture_fp, reg, value, true);
+	vs_egt_debug_dump_capture(hw->dc_capture_fp, reg, value, true);
 #endif
 
 	return value;
 }
 
-void dc_write(struct dc_hw *hw, u32 reg, u32 value);
-void dc_hw_reset(struct dc_hw *hw);
-void dc_write_u32_blob(struct dc_hw *hw, u32 reg, const u32 *data, u32 size);
-int dc_hw_init(struct dc_hw *hw);
-void dc_hw_deinit(struct dc_hw *hw);
-void dc_hw_update_plane(struct dc_hw *hw, u8 id, struct dc_hw_fb *fb);
-void dc_hw_update_plane_position(struct dc_hw *hw, u8 id, struct dc_hw_position *pos);
-void dc_hw_update_plane_y2r(struct dc_hw *hw, u8 id, struct dc_hw_y2r *y2r_conf);
-void dc_hw_update_plane_std_bld(struct dc_hw *hw, u8 zpos, struct dc_hw_std_bld *std_bld);
-void dc_hw_update_cursor(struct dc_hw *hw, u8 id, struct dc_hw_cursor *cursor);
-void dc_hw_update_gamma(struct dc_hw *hw, u8 id, u16 index, u16 r, u16 g, u16 b);
-void dc_hw_enable_gamma(struct dc_hw *hw, u8 id, bool enable);
-void dc_hw_setup_display_mode(struct dc_hw *hw, u8 id, struct dc_hw_display_mode *mode);
-u32 dc_hw_get_vblank_count(struct dc_hw *hw, u8 id);
-void dc_hw_config_plane_status(struct dc_hw *hw, u8 id, bool config);
-void dc_hw_config_display_status(struct dc_hw *hw, u8 id, bool config);
-void dc_hw_enable_vblank(struct dc_hw *hw, bool enable);
-int dc_hw_get_interrupt(struct dc_hw *hw, struct dc_hw_interrupt_status *status);
-int vs_dpu_hw_enable_interrupt(struct dc_hw *hw);
-bool dc_hw_check_underflow(__maybe_unused struct dc_hw *hw);
+void egt_dc_write(struct dc_hw *hw, u32 reg, u32 value);
+void egt_dc_hw_reset(struct dc_hw *hw);
+void egt_dc_write_u32_blob(struct dc_hw *hw, u32 reg, const u32 *data, u32 size);
+int egt_dc_hw_init(struct dc_hw *hw);
+void egt_dc_hw_deinit(struct dc_hw *hw);
+void egt_dc_hw_update_plane(struct dc_hw *hw, u8 id, struct dc_hw_fb *fb);
+void egt_dc_hw_update_plane_position(struct dc_hw *hw, u8 id, struct dc_hw_position *pos);
+void egt_dc_hw_update_plane_y2r(struct dc_hw *hw, u8 id, struct dc_hw_y2r *y2r_conf);
+void egt_dc_hw_update_plane_std_bld(struct dc_hw *hw, u8 zpos, struct dc_hw_std_bld *std_bld);
+void egt_dc_hw_update_cursor(struct dc_hw *hw, u8 id, struct dc_hw_cursor *cursor);
+void egt_dc_hw_update_gamma(struct dc_hw *hw, u8 id, u16 index, u16 r, u16 g, u16 b);
+void egt_dc_hw_enable_gamma(struct dc_hw *hw, u8 id, bool enable);
+void egt_dc_hw_setup_display_mode(struct dc_hw *hw, u8 id, struct dc_hw_display_mode *mode);
+u32 egt_dc_hw_get_vblank_count(struct dc_hw *hw, u8 id);
+void egt_dc_hw_config_plane_status(struct dc_hw *hw, u8 id, bool config);
+void egt_dc_hw_config_display_status(struct dc_hw *hw, u8 id, bool config);
+void egt_dc_hw_enable_vblank(struct dc_hw *hw, bool enable);
+int egt_dc_hw_get_interrupt(struct dc_hw *hw, struct dc_hw_interrupt_status *status);
+int vs_egt_dpu_hw_enable_interrupt(struct dc_hw *hw);
+bool egt_dc_hw_check_underflow(__maybe_unused struct dc_hw *hw);
 #ifdef CONFIG_DEBUG_FS
-void dc_hw_set_plane_crc(struct dc_hw *hw, u8 id, struct dc_hw_crc *crc);
-void dc_hw_get_plane_crc(struct dc_hw *hw, u8 id, struct dc_hw_crc *crc);
-void dc_hw_get_plane_crc_config(struct dc_hw *hw, u8 id, struct dc_hw_crc *crc);
-void dc_hw_set_display_crc(struct dc_hw *hw, u8 hw_id, struct dc_hw_disp_crc *crc);
-void dc_hw_get_display_crc(struct dc_hw *hw, u8 hw_id, struct dc_hw_disp_crc *crc);
-void dc_hw_get_display_crc_config(struct dc_hw *hw, u8 id, struct dc_hw_disp_crc *crc);
+void egt_dc_hw_set_plane_crc(struct dc_hw *hw, u8 id, struct dc_hw_crc *crc);
+void egt_dc_hw_get_plane_crc(struct dc_hw *hw, u8 id, struct dc_hw_crc *crc);
+void egt_dc_hw_get_plane_crc_config(struct dc_hw *hw, u8 id, struct dc_hw_crc *crc);
+void egt_dc_hw_set_display_crc(struct dc_hw *hw, u8 hw_id, struct dc_hw_disp_crc *crc);
+void egt_dc_hw_get_display_crc(struct dc_hw *hw, u8 hw_id, struct dc_hw_disp_crc *crc);
+void egt_dc_hw_get_display_crc_config(struct dc_hw *hw, u8 id, struct dc_hw_disp_crc *crc);
 #endif /* CONFIG_DEBUG_FS */
-void dc_hw_do_fe_reset(struct dc_hw *hw);
-void dc_hw_do_be_reset(struct dc_hw *hw);
-void dc_hw_do_reset(struct dc_hw *hw);
-void dc_hw_enable_shadow_register(struct dc_hw *hw, u8 display_id, bool enable);
-void dc_hw_start_trigger(struct dc_hw *hw, u8 display_id);
-void dc_hw_commit(struct dc_hw *hw, u8 display_id);
+void egt_dc_hw_do_fe_reset(struct dc_hw *hw);
+void egt_dc_hw_do_be_reset(struct dc_hw *hw);
+void egt_dc_hw_do_reset(struct dc_hw *hw);
+void egt_dc_hw_enable_shadow_register(struct dc_hw *hw, u8 display_id, bool enable);
+void egt_dc_hw_start_trigger(struct dc_hw *hw, u8 display_id);
+void egt_dc_hw_commit(struct dc_hw *hw, u8 display_id);
 u32 vs_dc_get_display_offset(u32 hw_id);
-u32 vs_dc_get_panel_dither_table_offset(__maybe_unused u32 hw_id);
-const struct dc_hw_plane *vs_dc_hw_get_plane(const struct dc_hw *hw, u32 hw_id);
-const struct dc_hw_display *vs_dc_hw_get_display(const struct dc_hw *hw, u32 hw_id);
-const void *vs_dc_hw_get_plane_property(const struct dc_hw *hw, u32 hw_id, const char *prop_name,
+u32 vs_egt_dc_get_panel_dither_table_offset(__maybe_unused u32 hw_id);
+const struct dc_hw_plane *vs_egt_dc_hw_get_plane(const struct dc_hw *hw, u32 hw_id);
+const struct dc_hw_display *vs_egt_dc_hw_get_display(const struct dc_hw *hw, u32 hw_id);
+const void *vs_egt_dc_hw_get_plane_property(const struct dc_hw *hw, u32 hw_id,
+					const char *prop_name,
 					bool *out_enabled);
-const void *vs_dc_hw_get_display_property(const struct dc_hw *hw, u32 hw_id, const char *prop_name,
-					  bool *out_enabled);
-u32 vs_dc_hw_read(struct dc_hw *hw, u32 reg);
+const void *vs_egt_dc_hw_get_display_property(const struct dc_hw *hw, u32 hw_id,
+					const char *prop_name,
+					bool *out_enabled);
+u32 vs_egt_dc_hw_read(struct dc_hw *hw, u32 reg);
 #ifdef CONFIG_ENGIANT_VS_DEC
-void dc_hw_set_plane_fbc_dec(struct dc_hw *hw, u8 id, bool enable, u8 dec_mod);
+void egt_dc_hw_set_plane_fbc_dec(struct dc_hw *hw, u8 id, bool enable, u8 dec_mod);
 #endif
 #endif /* __VS_DC_HW_H__ */

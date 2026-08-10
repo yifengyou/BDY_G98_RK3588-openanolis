@@ -48,12 +48,12 @@ static irqreturn_t egt_dp_irq_handle(__maybe_unused int irq, void *data)
 	u32 pci_intr_sts = 0;
 	u32 intr_sts = 0;
 
-	pci_intr_sts = readl(dp->mem_base.pci_intr_base + EGT_PCI_INTRREG_OFFSET);
+	pci_intr_sts = readl(dp->mem_base.pci_base + EGT_PCI_INTRREG_OFFSET);
 
-	if (!(pci_intr_sts & 0x40000))
+	if (pci_intr_sts == 0xffffffff || !(pci_intr_sts & 0x40000))
 		return IRQ_NONE;
 
-	writel(0x40000, dp->mem_base.pci_intr_base + EGT_PCI_INTRREG_OFFSET);
+	writel(0x40000, dp->mem_base.pci_base + EGT_PCI_INTRREG_OFFSET);
 
 	/* clear irq */
 	intr_sts = egt_dp_read(DP_SOURCE_TX_STATUS, dp);
@@ -238,9 +238,10 @@ static int egt_dp_aux_before(struct egt_displayport *dp, u8 size, int *irq_en, i
 		}
 	}
 
-	if (aux_256b)
-		*aux_256b = dp->aux_256b_capab;
+	if (!aux_256b)
+		return -EIO;
 
+	*aux_256b = dp->aux_256b_capab;
 	if ((*aux_256b == 0) && (size > 16))
 		return -EIO;
 
@@ -683,13 +684,13 @@ static struct egt_displayport *egt_dp_init(struct drm_device *drm_dev)
 	pr_debug("irq_num[2] | dp_base | irq_num[4] | mbox_base | phy_base | pcie_intr_base\n");
 	pr_debug("  %#x  |  %p  |  %#x  |  %d  |  %p  |  %p\n", priv->irq_num[2], priv->dp_base,
 			priv->irq_num[4], dp->mem_base.mbox_iobase,
-			priv->dp_phy_base, priv->intr_statu_base);
+			priv->dp_phy_base, priv->pci_base);
 
 	dp->mem_base.dp_base = priv->dp_base;
 	dp->irq =  priv->irq_num[2];
 	dp->mem_base.pci_mbox_base = priv->mbox_base;
 	dp->mem_base.mbox_iobase = EGT_DP_SIO_IO_CH1;
-	dp->mem_base.pci_intr_base = priv->intr_statu_base;
+	dp->mem_base.pci_base = priv->pci_base;
 
 	dp->dev = dev;
 	dp->connector_sts = connector_status_disconnected;

@@ -8,7 +8,7 @@
 
 #include <drm/drm_plane.h>
 #include <drm/drm_plane_helper.h>
-#include "drm/vs_drm.h"
+#include "vs_egt_drm.h"
 
 #ifdef CONFIG_DEBUG_FS
 #define MAX_CRC_NUM 16
@@ -263,10 +263,10 @@ struct vs_dc_info {
 	u32 mmu_prefetch : 1;
 	u32 panel_sync : 1;
 	/* cap_dec ===>
-	 *  (1 << DRM_FORMAT_MOD_VS_TYPE_COMPRESSED) means support dec400
-	 *  (1 << DRM_FORMAT_MOD_VS_TYPE_PVRIC) means support pvric
-	 *  (1 << DRM_FORMAT_MOD_VS_TYPE_DECNANO) means support DECNANO
-	 *  (1 << DRM_FORMAT_MOD_VS_TYPE_ETC2) means support ETC2
+	 *  (1 << DRM_FORMAT_MOD_VS_EGT_TYPE_COMPRESSED) means support dec400
+	 *  (1 << DRM_FORMAT_MOD_VS_EGT_TYPE_PVRIC) means support pvric
+	 *  (1 << DRM_FORMAT_MOD_VS_EGT_TYPE_DECNANO) means support DECNANO
+	 *  (1 << DRM_FORMAT_MOD_VS_EGT_TYPE_ETC2) means support ETC2
 	 */
 	u32 cap_dec;
 	u8 roi_y_gap;
