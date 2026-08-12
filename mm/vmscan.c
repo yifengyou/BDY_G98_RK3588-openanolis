@@ -4264,7 +4264,7 @@ bool lru_gen_look_around(struct page_vma_mapped_walk *pvmw, unsigned int batched
 	unsigned long end;
 	struct lru_gen_mm_walk *walk;
 	struct folio *last = NULL;
-	int young = 1;
+	int young = batched;
 	pte_t *pte = pvmw->pte;
 	unsigned long addr = pvmw->address;
 	struct vm_area_struct *vma = pvmw->vma;
