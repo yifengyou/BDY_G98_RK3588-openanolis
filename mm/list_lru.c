@@ -75,8 +75,16 @@ static inline struct list_lru_one *
 list_lru_from_memcg_idx(struct list_lru *lru, int nid, int idx)
 {
 	if (list_lru_memcg_aware(lru) && idx >= 0) {
-		struct list_lru_memcg *mlru = xa_load(&lru->xa, idx);
+		struct list_lru_memcg *mlru;
 
+		/*
+		 * If kmemcg_id is 0, it indicates the memcg is dying. Then
+		 * return NULL so that the parent memcg can be tried.
+		 */
+		if (!idx)
+			return NULL;
+
+		mlru = xa_load(&lru->xa, idx);
 		return mlru ? &mlru->node[nid] : NULL;
 	}
 	return &lru->node[nid].lru;

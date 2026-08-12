@@ -7026,6 +7026,8 @@ static void mem_cgroup_id_remove(struct mem_cgroup *memcg)
 		spin_unlock(&memcg_idr_lock);
 
 		memcg->id.id = 0;
+		/* Indicates the memcg is dying for list_lru. */
+		memcg->kmemcg_id = 0;
 	}
 }
 
