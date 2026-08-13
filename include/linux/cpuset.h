@@ -17,6 +17,7 @@
 #include <linux/mm.h>
 #include <linux/mmu_context.h>
 #include <linux/jump_label.h>
+#include <linux/cpuhplock.h>
 
 #ifdef CONFIG_CPUSETS
 
@@ -270,6 +271,7 @@ static inline bool current_cpuset_is_being_rebound(void)
 
 static inline void rebuild_sched_domains(void)
 {
+	guard(cpus_read_lock)();
 	partition_sched_domains(1, NULL, NULL);
 }
 
