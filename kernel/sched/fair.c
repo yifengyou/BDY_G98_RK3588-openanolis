@@ -8560,6 +8560,8 @@ requeue_delayed_entity(struct sched_entity *se)
 	SCHED_WARN_ON(!se->sched_delayed);
 	SCHED_WARN_ON(!se->on_rq);
 
+	update_curr(cfs_rq);
+
 	if (update_entity_lag(cfs_rq, se)) {
 		cfs_rq->nr_queued--;
 		dec_nr_class(cfs_rq, se);
