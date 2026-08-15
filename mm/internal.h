@@ -12,6 +12,7 @@
 #include <linux/mm.h>
 #include <linux/mmu_notifier.h>
 #include <linux/pagemap.h>
+#include <linux/pagewalk.h>
 #include <linux/rmap.h>
 #include <linux/swap.h>
 #include <linux/swapops.h>
@@ -1650,5 +1651,10 @@ static inline int ptep_clear_young_notify(struct vm_area_struct *vma,
 }
 
 #endif /* CONFIG_MMU_NOTIFIER */
+
+/* pagewalk.c */
+int walk_page_range_debug(struct mm_struct *mm, unsigned long start,
+			  unsigned long end, const struct mm_walk_ops *ops,
+			  pgd_t *pgd, void *private);
 
 #endif	/* __MM_INTERNAL_H */
