@@ -292,6 +292,11 @@ void io_req_rw_complete(struct io_kiocb *req, struct io_tw_state *ts)
 	 */
 	if (req->flags & REQ_F_REISSUE) {
 		req->flags &= ~REQ_F_REISSUE;
+		/*
+		 * Reissue will start accounting again, finish the current
+		 * cycle.
+		 */
+		io_req_io_end(req);
 		if (io_resubmit_prep(req)) {
 			req->flags |= REQ_F_FORCE_ASYNC;
 			io_req_task_queue(req);
