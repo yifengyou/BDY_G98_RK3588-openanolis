@@ -957,11 +957,6 @@ static enum folio_references folio_check_references(struct folio *folio,
 	/* rmap lock contention: rotate */
 	if (referenced_ptes == -1)
 		return FOLIOREF_KEEP;
-	/*
-	 * Activate file-backed executable folios if min_cache_kbytes is enabled.
-	 */
-	if (is_exec_file_folio(folio, vm_flags) && sc->file_is_reserved)
-		return FOLIOREF_ACTIVATE;
 
 	if (lru_gen_enabled()) {
 		if (!referenced_ptes)
@@ -2668,6 +2663,9 @@ out:
 			/* Look ma, no brain */
 			BUG();
 		}
+
+		if (sc->file_is_reserved && file)
+			scan = 0;
 
 		nr[lru] = scan;
 	}
@@ -4944,6 +4942,11 @@ static int isolate_folios(unsigned long nr_to_scan, struct lruvec *lruvec,
 		int type_scan;
 		int tier = get_tier_idx(lruvec, type);
 
+		if (sc->file_is_reserved && (type == LRU_GEN_FILE)) {
+			type = !type;
+			continue;
+		}
+
 		type_scan = scan_folios(nr_to_scan, lruvec, sc,
 					type, tier, list, isolated);
 		scanned += type_scan;
@@ -6658,8 +6661,10 @@ static bool memcg_can_shrink(struct scan_control *sc)
 			memcg_page_state(memcg, NR_INACTIVE_FILE);
 		f_dirty = memcg_page_state(memcg, NR_FILE_DIRTY);
 		file = (file > f_dirty) ? file - f_dirty : 0;
-
 		sc->file_is_reserved = file < memcg->min_cache_pages;
+
+		if (sc->file_is_reserved && !mem_cgroup_swappiness(memcg))
+			return false;
 	}
 
 	return true;
