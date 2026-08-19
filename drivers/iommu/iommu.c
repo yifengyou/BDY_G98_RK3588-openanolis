@@ -608,6 +608,7 @@ static void iommu_deinit_device(struct device *dev)
 
 		release_domain->ops->attach_dev(release_domain, dev,
 						group->domain);
+		atomic_dec(&group->domain->attach_count);
 	}
 
 	if (ops->release_device)
@@ -2204,7 +2205,16 @@ EXPORT_SYMBOL_GPL(iommu_domain_has_attachments);
 
 void iommu_domain_free(struct iommu_domain *domain)
 {
-	if (WARN_ON_ONCE(iommu_domain_has_attachments(domain))) {
+	/*
+	 * Global static domains are shared across all groups and their
+	 * attach_count reflects system-wide attachments. Skip the check
+	 * for them: BLOCKED type is always a global static; for IDENTITY,
+	 * compare against the specific ops->identity_domain instance to
+	 * avoid skipping per-group allocated identity domains.
+	 */
+	if (domain->type != IOMMU_DOMAIN_BLOCKED &&
+	    (domain->owner && domain != domain->owner->identity_domain) &&
+	    WARN_ON_ONCE(iommu_domain_has_attachments(domain))) {
 		pr_err("Attempt to free an iommu_domain that has attachments: %d\n",
 		       atomic_read(&domain->attach_count));
 		return;
