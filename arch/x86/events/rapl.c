@@ -719,10 +719,8 @@ static int __init init_rapl_pmus(void)
 
 	if (!rapl_pmu_is_pkg_scope())
 		maxdie *= topology_max_dies_per_package();
-	size_t size;
 
-	size = sizeof(*rapl_pmus) + maxdie * sizeof(struct rapl_pmu *);
-	rapl_pmus = kzalloc(size, GFP_KERNEL);
+	rapl_pmus = kzalloc(struct_size(rapl_pmus, pmus, maxdie), GFP_KERNEL);
 	if (!rapl_pmus)
 		return -ENOMEM;
 
