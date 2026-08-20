@@ -561,8 +561,10 @@ void page_cache_ra_order(struct readahead_control *ractl,
 			(BIT(order) & orders) == 0)
 			order--;
 		err = ra_alloc_folio(ractl, index, mark, order, gfp);
-		if (err)
+		if (err) {
+			count_mthp_stat(order, MTHP_STAT_FILE_FALLBACK);
 			break;
+		}
 		index += 1UL << order;
 	}
 
