@@ -870,7 +870,7 @@ DEFINE_STATIC_KEY_FALSE(sched_cache_present);
  */
 DEFINE_STATIC_KEY_FALSE(sched_cache_active);
 /* user wants cache aware scheduling [0 or 1] */
-int sysctl_sched_cache_user = 1;
+int sysctl_sched_cache_user;
 
 /*
  * Get the effective LLC size in bytes that @cpu's bottom sched_domain
