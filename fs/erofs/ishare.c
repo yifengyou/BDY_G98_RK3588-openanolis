@@ -65,6 +65,7 @@ bool erofs_ishare_fill_inode(struct inode *inode)
 		sharedinode->i_mapping->a_ops = aops;
 		sharedinode->i_mode = 0444 | S_IFREG;
 		sharedinode->i_size = vi->vfs_inode.i_size;
+		mapping_set_large_folios(sharedinode->i_mapping);
 		unlock_new_inode(sharedinode);
 	} else {
 		kfree(fp.opaque);
