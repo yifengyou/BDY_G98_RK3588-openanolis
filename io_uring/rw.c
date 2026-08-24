@@ -383,13 +383,6 @@ static int kiocb_done(struct io_kiocb *req, ssize_t ret,
 		io_rw_done(&rw->kiocb, ret);
 	}
 
-	if (req->flags & REQ_F_REISSUE) {
-		req->flags &= ~REQ_F_REISSUE;
-		if (io_resubmit_prep(req))
-			return -EAGAIN;
-		else
-			io_req_task_queue_fail(req, final_ret);
-	}
 	return IOU_ISSUE_SKIP_COMPLETE;
 }
 
@@ -828,8 +821,7 @@ static int __io_read(struct io_kiocb *req, unsigned int issue_flags)
 	if (ret == -EOPNOTSUPP && force_nonblock)
 		ret = -EAGAIN;
 
-	if (ret == -EAGAIN || (req->flags & REQ_F_REISSUE)) {
-		req->flags &= ~REQ_F_REISSUE;
+	if (ret == -EAGAIN) {
 		/* if we can poll, just do that */
 		if (req->opcode == IORING_OP_READ && io_file_can_poll(req))
 			return -EAGAIN;
@@ -1020,11 +1012,6 @@ int io_write(struct io_kiocb *req, unsigned int issue_flags)
 	if (ret2 == -EIOCBQUEUED) {
 		req->flags |= REQ_F_PARTIAL_IO;
 		io_kbuf_recycle(req, issue_flags);
-	}
-
-	if (req->flags & REQ_F_REISSUE) {
-		req->flags &= ~REQ_F_REISSUE;
-		ret2 = -EAGAIN;
 	}
 
 	/*
