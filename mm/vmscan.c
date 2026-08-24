@@ -6657,6 +6657,7 @@ static bool memcg_can_shrink(struct scan_control *sc)
 	unsigned long file, f_dirty;
 
 	if (cgroup_reclaim(sc) && memcg->min_cache_pages) {
+		mem_cgroup_flush_stats_ratelimited(memcg);
 		file = memcg_page_state(memcg, NR_ACTIVE_FILE) +
 			memcg_page_state(memcg, NR_INACTIVE_FILE);
 		f_dirty = memcg_page_state(memcg, NR_FILE_DIRTY);
