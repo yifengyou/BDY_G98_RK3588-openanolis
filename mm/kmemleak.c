@@ -2105,6 +2105,19 @@ void __init kmemleak_init(void)
 	}
 #endif
 
+	/*
+	 * scan_block() dereferences the scanned memory without any nofault
+	 * protection, while debug_pagealloc clears the PRESENT bit of freed
+	 * pages on the direct map. Scanning such a page causes a fatal
+	 * not-present page fault, so the two debug features cannot be used
+	 * together.
+	 */
+	if (debug_pagealloc_enabled()) {
+		pr_err("Incompatible with debug_pagealloc, disabling kmemleak\n");
+		kmemleak_disable();
+		return;
+	}
+
 	if (kmemleak_error)
 		return;
 
