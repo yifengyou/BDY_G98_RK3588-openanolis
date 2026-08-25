@@ -1500,7 +1500,7 @@ add_identity_delta(struct cfs_rq *cfs_rq, const struct identity_delta *d, struct
 	 * h_nr_expellee just changed -> reconsider the parent group_se's
 	 * pickable state (nr_highclass_pickable counter).
 	 */
-	if (se && parent_entity(se))
+	if ((cfs_rq->h_nr_expellee || d->expellee) && se && parent_entity(se))
 		recheck_highclass_pickable(parent_entity(se));
 #endif
 }
@@ -1517,7 +1517,7 @@ sub_identity_delta(struct cfs_rq *cfs_rq, const struct identity_delta *d, struct
 	 * h_nr_expellee just changed -> reconsider the parent group_se's
 	 * pickable state (nr_highclass_pickable counter).
 	 */
-	if (se && parent_entity(se))
+	if ((cfs_rq->h_nr_expellee || d->expellee) && se && parent_entity(se))
 		recheck_highclass_pickable(parent_entity(se));
 #endif
 }
@@ -2001,6 +2001,9 @@ static struct sched_entity *__pick_eevdf(struct cfs_rq *cfs_rq, bool protect)
 	if (sched_feat(ID_GI_STAT))
 		rq_of(cfs_rq)->last_pick_eevdf_path |= 0x1; /* bit0: __pick_eevdf */
 #endif
+
+	if (cfs_rq->nr_queued == 1)
+		return curr && curr->on_rq ? curr : se;
 
 	/*
 	 * Picking the ->next buddy will affect latency but not fairness.

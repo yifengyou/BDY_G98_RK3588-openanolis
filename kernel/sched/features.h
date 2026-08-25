@@ -161,7 +161,7 @@ SCHED_FEAT(ID_RESCUE_EXPELLEE, false)
  * (ID_ABSOLUTE_EXPEL or ID_SMT_EXPEL).  Disable to eliminate the
  * extra conditional on the pick hot-path.
  */
-SCHED_FEAT(ID_GI_STAT, true)
+SCHED_FEAT(ID_GI_STAT, false)
 SCHED_FEAT(ID_SYS_AWARE, false)
 SCHED_FEAT(ID_IRQ_AWARE, true)
 #endif
