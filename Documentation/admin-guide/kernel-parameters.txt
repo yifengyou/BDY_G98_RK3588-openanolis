@@ -6704,8 +6704,13 @@
 			details.
 
 	tlbi=		[X86-64]
-			Format: {ipi}
+			Format: {broadcast, ipi}
+			broadcast: use INVLPGB-based broadcast TLB flushing
 			ipi: switch to IPI-based TLB flushing
+
+			ANCK kernels default to IPI-based TLB flushing;
+			broadcast TLB flushing is only used when
+			tlbi=broadcast is specified.
 
 	topology=	[S390]
 			Format: {off | on}

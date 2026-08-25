@@ -1620,6 +1620,15 @@ static void __init cpu_parse_early_param(void)
 	if (arglen != 2 || strncmp(arg, "on", 2))
 		setup_clear_cpu_cap(X86_FEATURE_FRED);
 
+	/*
+	 * ANCK-specific: the INVLPGB/TLBSYNC issue is not root-caused yet,
+	 * so default to IPI-based TLB flushing. Broadcast TLB flushing is
+	 * only used when tlbi=broadcast is specified on the command line.
+	 */
+	arglen = cmdline_find_option(boot_command_line, "tlbi", arg, sizeof(arg));
+	if (arglen != 9 || strncmp(arg, "broadcast", 9))
+		setup_clear_cpu_cap(X86_FEATURE_INVLPGB);
+
 	arglen = cmdline_find_option(boot_command_line, "clearcpuid", arg, sizeof(arg));
 	if (arglen <= 0)
 		return;
