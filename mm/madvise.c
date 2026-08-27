@@ -1042,6 +1042,7 @@ static int madvise_vma_behavior(struct vm_area_struct *vma,
 	int error;
 	struct anon_vma_name *anon_name;
 	unsigned long new_flags = vma->vm_flags;
+	struct mm_struct *mm = vma->vm_mm;
 
 	async_fork_fixup_vma(vma);
 
@@ -1123,7 +1124,7 @@ static int madvise_vma_behavior(struct vm_area_struct *vma,
 	 * may not happen any time soon.
 	 */
 	if (!error && new_flags & VM_HUGEPAGE)
-		khugepaged_enter_mm(vma->vm_mm);
+		khugepaged_enter_mm(mm);
 out:
 	/*
 	 * madvise() returns EAGAIN if kernel resources, such as
