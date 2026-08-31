@@ -32,6 +32,7 @@
 #include <linux/kprobes.h>
 #include <linux/workqueue.h>
 #include <linux/pid_namespace.h>
+#include <linux/math64.h>
 #include <linux/vmalloc.h>
 #include <linux/pagemap.h>
 #ifdef CONFIG_TEXT_UNEVICTABLE
@@ -721,15 +722,25 @@ void memcg_decrease_unevict_size(struct mem_cgroup *memcg, unsigned long size)
 
 bool is_unevictable_size_overflow(struct mem_cgroup *memcg)
 {
-	struct page_counter *counter;
+	struct page_counter *counter = &memcg->memory;
+	unsigned long max;
 	u64 res_limit;
+	long cur;
 	u64 size;
 
-	counter = &memcg->memory;
-	res_limit = (u64)counter->max * PAGE_SIZE;
-	size = atomic_long_read(&memcg->unevictable_size);
-	size = size * 100 / res_limit;
-	if (size >= memcg->unevictable_percent)
+	max = READ_ONCE(counter->max);
+	if (max == PAGE_COUNTER_MAX)
+		res_limit = (u64)totalram_pages() << PAGE_SHIFT;
+	else
+		res_limit = (u64)max * PAGE_SIZE;
+
+	if (!res_limit)
+		return true;
+
+	cur = atomic_long_read(&memcg->unevictable_size);
+	size = cur > 0 ? (u64)cur : 0;
+
+	if (div64_u64(size * 100, res_limit) >= memcg->unevictable_percent)
 		return true;
 
 	return false;
