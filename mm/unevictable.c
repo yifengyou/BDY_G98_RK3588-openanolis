@@ -474,6 +474,27 @@ static void execute_vm_lock(struct work_struct *unused)
 		goto out;
 	}
 
+#ifdef CONFIG_TEXT_UNEVICTABLE
+	/*
+	 * Global kill-switch turned off after this work was queued.
+	 * Drop pending (!done) entries that have not pinned anything;
+	 * keep done entries for the unpin paths to release.
+	 */
+	if (!unevictable_enabled()) {
+		struct evict_pid_entry *pid_entry, *n;
+
+		list_for_each_entry_safe(pid_entry, n, &pid_list, list) {
+			if (pid_entry->done)
+				continue;
+			list_del(&pid_entry->list);
+			__remove_entry(pid_entry);
+			kfree(pid_entry);
+		}
+		mutex_unlock(&pid_mutex);
+		goto out;
+	}
+#endif
+
 	list_for_each_entry_safe(result, tmp, &pid_list, list) {
 		rootpid = result->rootpid;
 		if (result->done || rootpid <= 0)
