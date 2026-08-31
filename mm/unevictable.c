@@ -40,7 +40,7 @@
 #endif
 
 #define PROC_NAME	"unevictable"
-#define NAME_BUF	8
+#define NAME_BUF	16
 
 #ifdef CONFIG_TEXT_UNEVICTABLE
 DEFINE_STATIC_KEY_FALSE(unevictable_enabled_key);
