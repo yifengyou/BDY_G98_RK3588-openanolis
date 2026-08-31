@@ -33,6 +33,7 @@
 #include <linux/workqueue.h>
 #include <linux/pid_namespace.h>
 #include <linux/vmalloc.h>
+#include <linux/pagemap.h>
 #ifdef CONFIG_TEXT_UNEVICTABLE
 #include <linux/unevictable.h>
 #endif
@@ -64,6 +65,31 @@ struct evict_pid_entry {
 	struct task_struct *tsk;
 	bool done;
 };
+
+/*
+ * Check if a VMA should be pinned as unevictable.
+ *
+ * .text:   file-backed, readable, executable
+ * .rodata: file-backed, readable, not writable, not executable, and the
+ *          backing file's address_space has AS_ELF_EXEC set (meaning it
+ *          was previously mmap'd with PROT_EXEC -- so it is an ELF
+ *          binary or shared library).
+ */
+static inline bool vma_is_lockable(struct vm_area_struct *vma)
+{
+	if (!vma->vm_file || !(vma->vm_flags & VM_READ))
+		return false;
+
+	if (vma->vm_flags & VM_EXEC)
+		return true;
+
+	if (!(vma->vm_flags & VM_WRITE) &&
+	    vma->vm_file->f_mapping &&
+	    mapping_elf_exec(vma->vm_file->f_mapping))
+		return true;
+
+	return false;
+}
 
 static void execute_vm_lock(struct work_struct *unused);
 static struct evict_pids_t *base_tree;
@@ -122,9 +148,7 @@ static void __evict_pid(struct evict_pid_entry *pid)
 
 				mmap_write_lock(mm);
 				for_each_vma(vmi, vma) {
-					if (vma->vm_file &&
-					    (vma->vm_flags & VM_EXEC) &&
-					    (vma->vm_flags & VM_READ)) {
+					if (vma_is_lockable(vma)) {
 						flag = vma->vm_flags & ~VM_LOCKED_MASK;
 						error = mlock_fixup(&vmi, vma, &prev,
 							    vma->vm_start, vma->vm_end, flag);
@@ -495,9 +519,7 @@ static void execute_vm_lock(struct work_struct *unused)
 					if (memcg && is_unevictable_size_overflow(memcg))
 						break;
 #endif
-					if (vma->vm_file &&
-					    (vma->vm_flags & VM_EXEC) &&
-					    (vma->vm_flags & VM_READ)) {
+					if (vma_is_lockable(vma)) {
 						flag = vma->vm_flags & ~VM_LOCKED_MASK;
 						flag |= (VM_LOCKED | VM_LOCKONFAULT);
 						error = mlock_fixup(&vmi, vma, &prev,

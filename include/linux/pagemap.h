@@ -224,6 +224,7 @@ enum mapping_flags {
 	AS_FOLIO_ORDER_MAX = AS_FOLIO_ORDER_MIN + AS_FOLIO_ORDER_BITS,
 	AS_ZERO_FOLIO = 26,	/* Filled file hole with zero page */
 
+	AS_ELF_EXEC = 29,	/* file was mmap'd with PROT_EXEC (ELF binary/lib) */
 	AS_FSDAX_NORMAP = 30,
 };
 
@@ -364,6 +365,16 @@ static inline void mapping_set_no_data_integrity(struct address_space *mapping)
 static inline bool mapping_no_data_integrity(const struct address_space *mapping)
 {
 	return test_bit(AS_NO_DATA_INTEGRITY, &mapping->flags);
+}
+
+static inline void mapping_set_elf_exec(struct address_space *mapping)
+{
+	set_bit(AS_ELF_EXEC, &mapping->flags);
+}
+
+static inline bool mapping_elf_exec(struct address_space *mapping)
+{
+	return test_bit(AS_ELF_EXEC, &mapping->flags);
 }
 
 static inline gfp_t mapping_gfp_mask(struct address_space * mapping)

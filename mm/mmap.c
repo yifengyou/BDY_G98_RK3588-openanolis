@@ -2975,6 +2975,9 @@ expanded:
 
 	vma_set_page_prot(vma);
 
+	if (file && (vm_flags & VM_EXEC) && file->f_mapping)
+		mapping_set_elf_exec(file->f_mapping);
+
 	return addr;
 
 unmap_and_free_file_vma:
