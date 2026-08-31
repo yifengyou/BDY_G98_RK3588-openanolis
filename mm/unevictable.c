@@ -777,10 +777,8 @@ static inline void make_all_memcg_evictable(void)
 	for_each_mem_cgroup(memcg) {
 		if (!memcg->allow_unevictable)
 			continue;
-		mem_cgroup_scan_tasks(memcg, schedule_unevict_task, NULL);
 		memcg->allow_unevictable = 0;
-		memcg->unevictable_percent = 100;
-		atomic_long_set(&memcg->unevictable_size, 0);
+		mem_cgroup_scan_tasks(memcg, schedule_evict_task, NULL);
 	}
 }
 
