@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config HYGON_DCU_VFIO_PCI
+	tristate "VFIO support for HYGON DCU PCI devices"
+	select VFIO_PCI_CORE
+	help
+	  This provides generic PCI support for HYGON DCU devices
+	  using the VFIO framework.
+
+	  If you don't know what to do here, say N.

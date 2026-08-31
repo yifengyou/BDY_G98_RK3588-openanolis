@@ -19,3 +19,5 @@ obj-$(CONFIG_PDS_VFIO_PCI) += pds/
 obj-$(CONFIG_NVGRACE_GPU_VFIO_PCI) += nvgrace-gpu/
 
 obj-$(CONFIG_QAT_VFIO_PCI) += qat/
+
+obj-$(CONFIG_HYGON_DCU_VFIO_PCI) += hygon/
