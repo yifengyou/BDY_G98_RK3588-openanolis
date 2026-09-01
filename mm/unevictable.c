@@ -64,6 +64,7 @@ struct evict_pid_entry {
 	u64 unevict_size;
 #endif
 	struct task_struct *tsk;
+	u64 self_exec_id;
 	bool done;
 };
 
@@ -324,7 +325,17 @@ static void add_unevict_task(struct task_struct *tsk)
 			kfree(new_entry);
 			return;
 		} else if (tsk != result->tsk ||
-		    result->start_time != tsk->start_boottime) {
+			   result->start_time != tsk->start_boottime ||
+			   result->self_exec_id != tsk->self_exec_id) {
+			/*
+			 * self_exec_id detects execve(): after exec the task keeps
+			 * the same task_struct and start_boottime but gets a
+			 * new mm.  Comparing mm pointers is unreliable because
+			 * multiple execs without an intermediate re-add can
+			 * ABA: SLUB LIFO recycles the address of an mm freed
+			 * by an earlier exec for a later one.  self_exec_id
+			 * is monotonically increasing and immune to reuse.
+			 */
 			result->done = false;
 		}
 		put_task_struct(tsk);
@@ -557,6 +568,7 @@ static void execute_vm_lock(struct work_struct *unused)
 
 				result->tsk = tsk;
 				result->start_time = tsk->start_boottime;
+				result->self_exec_id = tsk->self_exec_id;
 				result->done = true;
 				mmap_write_unlock(mm);
 #ifdef CONFIG_TEXT_UNEVICTABLE
