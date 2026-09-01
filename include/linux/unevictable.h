@@ -17,8 +17,7 @@ void memcg_increase_unevict_size(struct mem_cgroup *memcg, unsigned long size);
 void memcg_decrease_unevict_size(struct mem_cgroup *memcg, unsigned long size);
 bool is_unevictable_size_overflow(struct mem_cgroup *memcg);
 unsigned long memcg_exstat_text_unevict_gather(struct mem_cgroup *memcg);
-void mem_cgroup_can_unevictable(struct task_struct *tsk, struct mem_cgroup *to);
-void mem_cgroup_cancel_unevictable(struct cgroup_taskset *tset);
+void mem_cgroup_attach_unevictable(struct cgroup_taskset *tset);
 void memcg_all_processes_unevict(struct mem_cgroup *memcg, bool enable);
 void del_unevict_task(struct task_struct *tsk);
 void clean_task_unevict_size(struct task_struct *tsk);
@@ -48,11 +47,7 @@ static inline unsigned long memcg_exstat_text_unevict_gather(struct mem_cgroup *
 {
 	return 0;
 }
-static inline void mem_cgroup_can_unevictable(struct task_struct *tsk,
-					      struct mem_cgroup *to)
-{
-}
-static inline void mem_cgroup_cancel_unevictable(struct cgroup_taskset *tset)
+static inline void mem_cgroup_attach_unevictable(struct cgroup_taskset *tset)
 {
 }
 static inline void memcg_all_processes_unevict(struct mem_cgroup *memcg, bool enable)

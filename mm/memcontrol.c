@@ -8109,10 +8109,6 @@ static int mem_cgroup_can_attach(struct cgroup_taskset *tset)
 	if (!p)
 		return 0;
 
-#ifdef CONFIG_TEXT_UNEVICTABLE
-	mem_cgroup_can_unevictable(p, memcg);
-#endif
-
 	/*
 	 * We are now committed to this value whatever it is. Changes in this
 	 * tunable will only affect upcoming migrations, not the current one.
@@ -8156,9 +8152,6 @@ static int mem_cgroup_can_attach(struct cgroup_taskset *tset)
 
 static void mem_cgroup_cancel_attach(struct cgroup_taskset *tset)
 {
-#ifdef CONFIG_TEXT_UNEVICTABLE
-	mem_cgroup_cancel_unevictable(tset);
-#endif
 	if (mc.to)
 		mem_cgroup_clear_mc();
 }
@@ -8378,10 +8371,13 @@ static void mem_cgroup_attach(struct cgroup_taskset *tset)
 	if (task->mm && READ_ONCE(task->mm->owner) == task)
 		lru_gen_migrate_mm(task->mm);
 	task_unlock(task);
+
+	mem_cgroup_attach_unevictable(tset);
 }
 #else
 static void mem_cgroup_attach(struct cgroup_taskset *tset)
 {
+	mem_cgroup_attach_unevictable(tset);
 }
 #endif /* CONFIG_LRU_GEN */
 

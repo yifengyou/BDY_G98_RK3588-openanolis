@@ -760,37 +760,21 @@ unsigned long memcg_exstat_text_unevict_gather(struct mem_cgroup *memcg)
 	return atomic_long_read(&memcg->unevictable_size);
 }
 
-void mem_cgroup_can_unevictable(struct task_struct *tsk, struct mem_cgroup *to)
+void mem_cgroup_attach_unevictable(struct cgroup_taskset *tset)
 {
-	struct mem_cgroup *from;
-
-	from = mem_cgroup_from_task(tsk);
-	VM_BUG_ON(from == to);
-
-	if (to->allow_unevictable && !from->allow_unevictable &&
-	    unevictable_enabled()) {
-		add_unevict_task(tsk);
-		schedule_delayed_work(&evict_work, HZ);
-	}
-
-	if (!to->allow_unevictable && from->allow_unevictable)
-		del_unevict_task(tsk);
-}
-
-void mem_cgroup_cancel_unevictable(struct cgroup_taskset *tset)
-{
-	struct task_struct *tsk;
-	struct cgroup_subsys_state *dst_css;
+	struct task_struct *leader;
+	struct cgroup_subsys_state *css;
 	struct mem_cgroup *memcg;
 
-	if (!unevictable_enabled())
-		return;
+	cgroup_taskset_for_each_leader(leader, css, tset) {
+		memcg = mem_cgroup_from_css(css);
 
-	cgroup_taskset_for_each(tsk, dst_css, tset) {
-		memcg = mem_cgroup_from_task(tsk);
-
-		if (memcg && memcg->allow_unevictable)
-			del_unevict_task(tsk);
+		if (memcg->allow_unevictable && unevictable_enabled()) {
+			add_unevict_task(leader);
+			schedule_delayed_work(&evict_work, HZ);
+		} else if (!memcg->allow_unevictable) {
+			del_unevict_task(leader);
+		}
 	}
 }
 
