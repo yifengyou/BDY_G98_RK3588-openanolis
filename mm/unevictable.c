@@ -842,6 +842,25 @@ void memcg_all_processes_unevict(struct mem_cgroup *memcg, bool enable)
 		mem_cgroup_scan_tasks(tmp_memcg, schedule_evict_task, NULL);
 }
 
+void unevict_task_fork(struct task_struct *tsk)
+{
+	struct mem_cgroup *memcg = mem_cgroup_from_task(tsk);
+
+	if (!unevictable_enabled())
+		return;
+
+	/*
+	 * memcg is practically never NULL (every task belongs to at least root
+	 * memcg), but if it were, allow arming — only an explicit
+	 * allow_unevictable=0 should block it.
+	 */
+	if (memcg && !memcg->allow_unevictable)
+		return;
+
+	add_unevict_task(tsk);
+	schedule_delayed_work(&evict_work, HZ);
+}
+
 static int __init setup_unevictable(char *s)
 {
 	if (!strcmp(s, "1"))

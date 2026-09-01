@@ -8385,6 +8385,11 @@ static void mem_cgroup_attach(struct cgroup_taskset *tset)
 }
 #endif /* CONFIG_LRU_GEN */
 
+static void mem_cgroup_fork(struct task_struct *task)
+{
+	unevict_task_fork(task);
+}
+
 static int seq_puts_memcg_tunable(struct seq_file *m, unsigned long value)
 {
 	if (value == PAGE_COUNTER_MAX)
@@ -9033,6 +9038,7 @@ struct cgroup_subsys memory_cgrp_subsys = {
 	.can_attach = mem_cgroup_can_attach,
 	.attach = mem_cgroup_attach,
 	.cancel_attach = mem_cgroup_cancel_attach,
+	.fork = mem_cgroup_fork,
 	.post_attach = mem_cgroup_move_task,
 	.dfl_cftypes = memory_files,
 	.legacy_cftypes = mem_cgroup_legacy_files,

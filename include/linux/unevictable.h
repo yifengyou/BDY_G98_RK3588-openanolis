@@ -22,6 +22,7 @@ void mem_cgroup_cancel_unevictable(struct cgroup_taskset *tset);
 void memcg_all_processes_unevict(struct mem_cgroup *memcg, bool enable);
 void del_unevict_task(struct task_struct *tsk);
 void clean_task_unevict_size(struct task_struct *tsk);
+void unevict_task_fork(struct task_struct *tsk);
 #else
 static inline bool unevictable_enabled(void)
 {
@@ -61,6 +62,9 @@ static inline void del_unevict_task(struct task_struct *tsk)
 {
 }
 static inline void clean_task_unevict_size(struct task_struct *tsk)
+{
+}
+static inline void unevict_task_fork(struct task_struct *tsk)
 {
 }
 #endif
