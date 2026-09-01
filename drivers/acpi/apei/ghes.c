@@ -46,6 +46,7 @@
 #include <linux/sched/clock.h>
 #include <linux/uuid.h>
 #include <linux/ras.h>
+#include <linux/set_memory.h>
 #include <linux/task_work.h>
 
 #include <acpi/actbl1.h>
@@ -510,6 +511,16 @@ static void memory_failure_cb(struct callback_head *twork)
 	int ret;
 
 	ret = memory_failure(twcb->pfn, twcb->flags);
+#ifdef CONFIG_ARM64
+	/*
+	 * If the pfn reported by ghes can not be recovered, set the
+	 * corresponding page table of linear mapping range to be
+	 * non-present, which avoids the speculative access of corrupted
+	 * memory.
+	 */
+	if (!ret && pfn_to_online_page(twcb->pfn))
+		set_memory_np((unsigned long)page_to_virt(pfn_to_page(twcb->pfn)), 1);
+#endif
 	gen_pool_free(ghes_estatus_pool, (unsigned long)twcb, sizeof(*twcb));
 
 	if (!ret || ret == -EHWPOISON || ret == -EOPNOTSUPP)
