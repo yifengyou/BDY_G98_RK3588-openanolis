@@ -66,6 +66,7 @@
 #include <linux/coredump.h>
 #include <linux/time_namespace.h>
 #include <linux/user_events.h>
+#include <linux/unevictable.h>
 
 #include <linux/uaccess.h>
 #include <asm/mmu_context.h>
@@ -1443,6 +1444,9 @@ int begin_new_exec(struct linux_binprm * bprm)
 		bprm->executable = NULL;
 		bprm->execfd = retval;
 	}
+
+	unevict_task_fork(me);
+
 	return 0;
 
 out_unlock:
