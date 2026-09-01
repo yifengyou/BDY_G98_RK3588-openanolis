@@ -144,7 +144,6 @@ static void __evict_pid(struct evict_pid_entry *pid)
 				vm_flags_t flag;
 				int error;
 #ifdef CONFIG_TEXT_UNEVICTABLE
-				unsigned long size = 0;
 				struct mem_cgroup *memcg = get_mem_cgroup_from_mm(mm);
 #endif
 
@@ -157,18 +156,16 @@ static void __evict_pid(struct evict_pid_entry *pid)
 						/* Ignore errors, but prev needs fixing up. */
 						if (error)
 							prev = vma;
-#ifdef CONFIG_TEXT_UNEVICTABLE
-						size += vma->vm_end - vma->vm_start;
-#endif
 					}
 				}
 				mmap_write_unlock(mm);
 #ifdef CONFIG_TEXT_UNEVICTABLE
 				if (memcg) {
-					memcg_decrease_unevict_size(memcg, size);
+					memcg_decrease_unevict_size(memcg,
+								    pid->unevict_size);
 					css_put(&memcg->css);
 				}
-				pid->unevict_size -= size;
+				pid->unevict_size = 0;
 #endif
 			}
 			mmput(mm);
