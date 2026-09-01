@@ -755,13 +755,11 @@ void mem_cgroup_can_unevictable(struct task_struct *tsk, struct mem_cgroup *to)
 {
 	struct mem_cgroup *from;
 
-	if (!unevictable_enabled())
-		return;
-
 	from = mem_cgroup_from_task(tsk);
 	VM_BUG_ON(from == to);
 
-	if (to->allow_unevictable && !from->allow_unevictable) {
+	if (to->allow_unevictable && !from->allow_unevictable &&
+	    unevictable_enabled()) {
 		add_unevict_task(tsk);
 		schedule_delayed_work(&evict_work, HZ);
 	}
@@ -818,7 +816,7 @@ void memcg_all_processes_unevict(struct mem_cgroup *memcg, bool enable)
 {
 	struct mem_cgroup *tmp_memcg;
 
-	if (!unevictable_enabled())
+	if (enable && !unevictable_enabled())
 		return;
 
 	if (!memcg)

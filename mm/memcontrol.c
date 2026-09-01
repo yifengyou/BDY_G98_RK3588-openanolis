@@ -6367,6 +6367,8 @@ static int mem_cgroup_allow_unevictable_write(struct cgroup_subsys_state *css,
 
 	if (val > 1)
 		return -EINVAL;
+	if (val && !unevictable_enabled())
+		return -EPERM;
 	if (memcg->allow_unevictable == val)
 		return 0;
 
