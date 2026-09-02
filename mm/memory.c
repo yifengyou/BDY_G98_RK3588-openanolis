@@ -7538,7 +7538,12 @@ static inline bool is_pmd_tbl_wrprotect(pmd_t pmd)
 	return (pmd_val(pmd) & PMD_TABLE_BIT) &&
 		(pmd_val(pmd) & PMD_SECT_AP_WRPROTECT);
 #elif defined(CONFIG_X86)
-	return (pmd_flags(pmd) & ~_PAGE_USER) == (_KERNPG_TABLE & ~_PAGE_RW);
+	/*
+	 * pmdp_set_wrprotect() moves the hardware dirty bit to
+	 * _PAGE_SAVED_DIRTY, so mask both dirty bits here.
+	 */
+	return (pmd_flags(pmd) & ~(_PAGE_USER | _PAGE_DIRTY_BITS)) ==
+		(_KERNPG_TABLE & ~(_PAGE_RW | _PAGE_DIRTY_BITS));
 #else
 	return false;
 #endif
