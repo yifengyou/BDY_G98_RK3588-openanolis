@@ -1433,6 +1433,13 @@ static void svm_vcpu_free(struct kvm_vcpu *vcpu)
 
 	sev_free_vcpu(vcpu);
 
+	/*
+	 * For CSV3 guests, vmcb01.pa is the firmware-owned secure VMCB page.
+	 * Restore the host shadow VMCB page address before releasing it, or
+	 * KVM would free the firmware's page back to the buddy allocator.
+	 */
+	csv3_restore_vmcb_pa(svm);
+
 	__free_page(pfn_to_page(__sme_clr(svm->vmcb01.pa) >> PAGE_SHIFT));
 	svm_vcpu_free_msrpm(svm->msrpm);
 }

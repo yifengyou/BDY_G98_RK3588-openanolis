@@ -1262,6 +1262,24 @@ static bool csv3_guest(struct kvm *kvm)
 	return sev_es_guest(kvm) && csv->csv3_active;
 }
 
+/**
+ * csv3_restore_vmcb_pa - Restore the host shadow VMCB physical address
+ * @svm: The vCPU whose VMCB physical address is to be restored.
+ *
+ * After CSV3_CMD_LAUNCH_ENCRYPT_VMCB (or CSV3_CMD_RECEIVE_ENCRYPT_CONTEXT),
+ * svm->vmcb01.pa is overwritten with the firmware-owned secure VMCB page
+ * address.  The page backing the host shadow VMCB is released in
+ * svm_vcpu_free() according to svm->vmcb01.pa, so the field must be restored
+ * to the shadow page address first.  Otherwise KVM hands a page that is still
+ * owned and used by the firmware back to the buddy allocator, causing a double
+ * ownership and use-after-free.
+ */
+void csv3_restore_vmcb_pa(struct vcpu_svm *svm)
+{
+	if (csv3_guest(svm->vcpu.kvm))
+		svm->vmcb01.pa = __sme_pa(svm->vmcb01.ptr);
+}
+
 static inline void csv3_init_update_npt(struct csv3_data_update_npt *update_npt,
 					gpa_t gpa, u32 error, u32 handle)
 {
@@ -3050,14 +3068,12 @@ out:
 static void csv_vm_destroy(struct kvm *kvm)
 {
 	struct kvm_csv_info *csv = &to_kvm_svm_csv(kvm)->csv_info;
-	struct kvm_vcpu *vcpu;
 
 	struct list_head *smr_head = &csv->smr_list;
 	struct list_head *pos, *q;
 	struct secure_memory_region *smr;
 	struct shared_page *sp;
 	struct rb_node *node;
-	unsigned long i = 0;
 
 	if (csv3_guest(kvm)) {
 		mutex_lock(&csv->sp_lock);
@@ -3086,12 +3102,6 @@ static void csv_vm_destroy(struct kvm *kvm)
 
 		kmem_cache_destroy(csv->sp_slab);
 		csv->sp_slab = NULL;
-
-		kvm_for_each_vcpu(i, vcpu, kvm) {
-			struct vcpu_svm *svm = to_svm(vcpu);
-
-			svm->current_vmcb->pa = __sme_pa(svm->vmcb);
-		}
 	}
 
 	if (likely(csv_x86_ops.vm_destroy))

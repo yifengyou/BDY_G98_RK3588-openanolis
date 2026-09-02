@@ -81,6 +81,7 @@ bool csv_has_emulated_ghcb_msr(struct kvm *kvm);
 void csv2_sync_reset_vmsa(struct vcpu_svm *svm);
 void csv2_free_reset_vmsa(struct vcpu_svm *svm);
 int csv2_setup_reset_vmsa(struct vcpu_svm *svm);
+void csv3_restore_vmcb_pa(struct vcpu_svm *svm);
 
 static inline bool csv2_state_unstable(struct vcpu_svm *svm)
 {
@@ -104,6 +105,7 @@ static inline bool csv2_state_unstable(struct vcpu_svm *svm) { return false; }
 static inline void csv2_sync_reset_vmsa(struct vcpu_svm *svm) { }
 static inline void csv2_free_reset_vmsa(struct vcpu_svm *svm) { }
 static inline int csv2_setup_reset_vmsa(struct vcpu_svm *svm) { return 0; }
+static inline void csv3_restore_vmcb_pa(struct vcpu_svm *svm) { }
 
 #endif	/* CONFIG_HYGON_CSV */
 
