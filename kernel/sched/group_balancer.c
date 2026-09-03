@@ -182,7 +182,7 @@ const struct cpumask *cpu_llc_mask(int cpu)
 	if (!llc)
 		return cpumask_of(cpu);
 
-	return (const struct cpumask *)to_cpumask(llc->span);
+	return sched_domain_span(llc);
 }
 
 const struct cpumask *cpu_die_mask(int cpu)
