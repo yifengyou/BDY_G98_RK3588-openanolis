@@ -7532,49 +7532,6 @@ void ptlock_free(struct ptdesc *ptdesc)
 #endif
 
 /* Fast reflink */
-static inline bool is_pmd_tbl_wrprotect(pmd_t pmd)
-{
-#if defined(CONFIG_ARM64)
-	return (pmd_val(pmd) & PMD_TABLE_BIT) &&
-		(pmd_val(pmd) & PMD_SECT_AP_WRPROTECT);
-#elif defined(CONFIG_X86)
-	/*
-	 * pmdp_set_wrprotect() moves the hardware dirty bit to
-	 * _PAGE_SAVED_DIRTY, so mask both dirty bits here.
-	 */
-	return (pmd_flags(pmd) & ~(_PAGE_USER | _PAGE_DIRTY_BITS)) ==
-		(_KERNPG_TABLE & ~(_PAGE_RW | _PAGE_DIRTY_BITS));
-#else
-	return false;
-#endif
-}
-
-static inline void pmdp_set_tbl_wrprotect(struct mm_struct *mm,
-					  unsigned long addr, pmd_t *pmdp)
-{
-#if defined(CONFIG_ARM64)
-	set_pmd(pmdp, __pmd(pmd_val(*pmdp) | PMD_SECT_AP_WRPROTECT));
-#elif defined(CONFIG_X86)
-	pmdp_set_wrprotect(mm, addr, pmdp);
-#endif
-}
-
-static inline void pmdp_clear_tbl_wrprotect(pmd_t *pmdp,
-					    struct vm_area_struct *vma)
-{
-#if defined(CONFIG_ARM64)
-	set_pmd(pmdp, __pmd(pmd_val(*pmdp) & ~PMD_SECT_AP_WRPROTECT));
-#elif defined(CONFIG_X86)
-	set_pmd(pmdp, pmd_mkwrite(*pmdp, vma));
-#endif
-}
-
-bool is_pmd_fast_reflink(pmd_t pmd)
-{
-	return !is_swap_pmd(pmd) && !pmd_trans_huge(pmd) &&
-		!pmd_devmap(pmd) && is_pmd_tbl_wrprotect(pmd);
-}
-
 static int follow_pmd(struct mm_struct *mm, unsigned long address,
 		      pmd_t **pmdp)
 {
@@ -7677,7 +7634,7 @@ unlock_pmd:
 		}
 
 		if (IS_ALIGNED(start, PMD_SIZE) && (start + PMD_SIZE <= end)) {
-			pmdp_set_tbl_wrprotect(mm, start, pmdp);
+			pmdp_set_wp(mm, start, pmdp);
 			flush_tlb_range(vma, start, start + PMD_SIZE);
 			applied = true;
 			spin_unlock(pml);
@@ -7733,7 +7690,7 @@ static void fr_fixup_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 	ptep = start_pte;
 
 	/* Already fixed up */
-	if (unlikely(!is_pmd_fast_reflink(*pmd)))
+	if (unlikely(!is_pmd_copied_slow(*pmd)))
 		goto out;
 
 	do {
@@ -7769,13 +7726,13 @@ static void fr_fixup_pmd_range(struct vm_area_struct *vma, pud_t *pud,
 			continue;
 
 		pml = pmd_lock(vma->vm_mm, pmd);
-		if (is_pmd_fast_reflink(*pmd)) {
+		if (is_pmd_copied_slow(*pmd)) {
 			spin_unlock(pml);
 			fr_fixup_pte_range(vma, pmd, start, next);
 
 			pml = pmd_lock(vma->vm_mm, pmd);
-			if (is_pmd_fast_reflink(*pmd))
-				pmdp_clear_tbl_wrprotect(pmd, vma);
+			if (is_pmd_copied_slow(*pmd))
+				pmdp_clear_wp(pmd, vma);
 		}
 		spin_unlock(pml);
 	} while (pmd++, start = next, start != end);
@@ -7843,12 +7800,12 @@ void fast_reflink_fixup_vma(struct vm_area_struct *vma)
 void fast_reflink_fixup_pmd(struct vm_area_struct *vma, pmd_t *pmd,
 			    unsigned long addr)
 {
-	if (!is_pmd_fast_reflink(*pmd) || !vma->fast_reflink)
+	if (!is_pmd_copied_slow(*pmd) || !vma->fast_reflink)
 		return;
 
 	addr &= PMD_MASK;
 	fr_fixup_page_range(vma, addr, addr + PMD_SIZE);
-	VM_WARN_ON_ONCE(is_pmd_fast_reflink(*pmd));
+	VM_WARN_ON_ONCE(is_pmd_copied_slow(*pmd));
 
 #ifdef CONFIG_ARM64
 	flush_tlb_range(vma, addr & PMD_MASK, (addr & PMD_MASK) + PMD_SIZE);

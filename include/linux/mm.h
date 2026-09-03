@@ -4495,7 +4495,6 @@ struct fast_reflink_work {
 
 int fast_reflink_apply(struct address_space *mapping, pgoff_t start,
 		       pgoff_t end);
-bool is_pmd_fast_reflink(pmd_t pmd);
 void fast_reflink_fixup_pmd(struct vm_area_struct *vma, pmd_t *pmd,
 			    unsigned long addr);
 void fast_reflink_fixup_vma(struct vm_area_struct *vma);
