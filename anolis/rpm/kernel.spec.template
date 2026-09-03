@@ -790,6 +790,13 @@ done
 for i in *.config
 do
   sed -i 's/# CONFIG_GCOV_KERNEL is not set/CONFIG_GCOV_KERNEL=y\nCONFIG_GCOV_PROFILE_ALL=y\n/' $i
+  # Upstream 92b8881bf776 ("net: avoid build bug in skb extension length
+  # calculation") guards BUILD_BUG_ON(skb_ext_total_length() > 255) with
+  # !IS_ENABLED(CONFIG_KCOV_INSTRUMENT_ALL), because gcc cannot fold that
+  # expression once CFLAGS_GCOV adds -fno-tree-loop-im.  The GCOV options
+  # above do not activate that guard, so inject KCOV as well; archs without
+  # KCOV fall back via the olddefconfig pass below.
+  sed -i 's/# CONFIG_KCOV is not set/CONFIG_KCOV=y\nCONFIG_KCOV_INSTRUMENT_ALL=y\n/' $i
 done
 %endif
 
