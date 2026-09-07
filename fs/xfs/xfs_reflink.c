@@ -701,6 +701,9 @@ xfs_reflink_allocate_cow(
 				convert_now);
 
 	if (ip->i_reflink_flags & XFS_REFLINK_PRIMARY) {
+		unsigned int	seq_before = READ_ONCE(ip->i_df.if_seq);
+		int		nimaps;
+
 		xfs_iunlock(ip, *lockmode);
 		error = xfs_reflink_unshare_range(ip, imap,
 				&secondary_evicting);
@@ -711,12 +714,40 @@ xfs_reflink_allocate_cow(
 				 ip->i_ino);
 		} else if (secondary_evicting) {
 			/*
-			 * It's impossible to have another reflink here (racing with
-			 * FICLONE) since ip takes XFS_MMAPLOCK_SHARED lock and FICLONE
-			 * needs XFS_MMAPLOCK_EXEC.
+			 * The secondary is going away and a racing FICLONE
+			 * cannot add a new sharer: it needs the IOLOCK and
+			 * MMAPLOCK exclusively on both files, and we hold at
+			 * least one of these locks here.  So the block is
+			 * unshared: write in-place unless the data fork was
+			 * remapped, in which case resample it below.
 			 */
-			*shared = false;
-			return 0;
+			if (seq_before == READ_ONCE(ip->i_df.if_seq)) {
+				*shared = false;
+				return 0;
+			}
+		}
+
+		/*
+		 * A concurrent write or write fault on this inode can complete
+		 * a CoW cycle (xfs_reflink_end_cow) while we dropped the ILOCK
+		 * for xfs_reflink_unshare_range, remapping the data fork.
+		 * Re-read the data fork mapping and re-check the cow fork so
+		 * we don't operate on stale physical blocks below.
+		 */
+		if (seq_before != READ_ONCE(ip->i_df.if_seq)) {
+			nimaps = 1;
+			error = xfs_bmapi_read(ip, imap->br_startoff,
+					imap->br_blockcount, imap, &nimaps, 0);
+			if (error)
+				return error;
+
+			error = xfs_find_trim_cow_extent(ip, imap, cmap,
+					shared, &found);
+			if (error || !*shared)
+				return error;
+			if (found)
+				return xfs_reflink_convert_unwritten(ip, imap,
+						cmap, convert_now);
 		}
 	}
 
