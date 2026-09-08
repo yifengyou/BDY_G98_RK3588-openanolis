@@ -461,8 +461,9 @@ EXPORT_SYMBOL_GPL(nvme_host_path_error);
 
 bool nvme_cancel_request(struct request *req, void *data)
 {
-	dev_dbg_ratelimited(((struct nvme_ctrl *) data)->device,
-				"Cancelling I/O %d", req->tag);
+	struct nvme_ctrl *ctrl = data;
+
+	dev_dbg_ratelimited(ctrl->device, "Cancelling I/O %d", req->tag);
 
 	/* don't abort one completed or idle request */
 	if (blk_mq_rq_state(req) != MQ_RQ_IN_FLIGHT)
@@ -470,6 +471,14 @@ bool nvme_cancel_request(struct request *req, void *data)
 
 	nvme_req(req)->status = NVME_SC_HOST_ABORTED_CMD;
 	nvme_req(req)->flags |= NVME_REQ_CANCELLED;
+	/*
+	 * Bump the genctr so that a completion the device still delivers
+	 * for the cancelled command id is rejected by nvme_find_rq(),
+	 * instead of completing the freed request or, once the tag is
+	 * reused, its new owner.
+	 */
+	if (!(ctrl->quirks & NVME_QUIRK_SKIP_CID_GEN))
+		nvme_req(req)->genctr++;
 	blk_mq_complete_request(req);
 	return true;
 }
