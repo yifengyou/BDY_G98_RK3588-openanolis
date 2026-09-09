@@ -495,6 +495,10 @@ struct mem_cgroup {
 	struct reclaim_coldpgs_stats __percpu *coldpgs_stats;
 #endif
 
+#ifdef CONFIG_LRU_GEN
+	bool lru_gen_reclaim_enabled;
+#endif
+
 	CK_KABI_RESERVE(1)
 	CK_KABI_RESERVE(2)
 	CK_KABI_RESERVE(3)

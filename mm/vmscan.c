@@ -4504,6 +4504,9 @@ int lru_gen_print_memcg(struct seq_file *m, struct mem_cgroup *memcg)
 {
 	int nid;
 
+	if (!READ_ONCE(memcg->lru_gen_reclaim_enabled))
+		return -EACCES;
+
 	for_each_node_state(nid, N_MEMORY) {
 		struct lruvec *lruvec;
 		struct lru_gen_folio *lrugen;
@@ -4618,6 +4621,9 @@ static int run_cmd_memcg(char cmd, struct mem_cgroup *memcg, int nid,
 {
 	struct lruvec *lruvec;
 
+	if (!READ_ONCE(memcg->lru_gen_reclaim_enabled))
+		return -EACCES;
+
 	if (nid < 0 || nid >= MAX_NUMNODES || !node_state(nid, N_MEMORY))
 		return -EINVAL;
 
@@ -4666,6 +4672,13 @@ ssize_t lru_gen_memcg_write(struct kernfs_open_file *of,
 		return -EINVAL;
 
 	next = strstrip(buf);
+	if (!strcmp(next, "enable")) {
+		WRITE_ONCE(memcg->lru_gen_reclaim_enabled, true);
+		return nbytes;
+	} else if (!strcmp(next, "disable")) {
+		WRITE_ONCE(memcg->lru_gen_reclaim_enabled, false);
+		return nbytes;
+	}
 
 	set_task_reclaim_state(current, &sc.reclaim_state);
 	flags = memalloc_noreclaim_save();
@@ -6014,6 +6027,8 @@ void lru_gen_init_lruvec(struct lruvec *lruvec)
 void lru_gen_init_memcg(struct mem_cgroup *memcg)
 {
 	struct lru_gen_mm_list *mm_list = get_mm_list(memcg);
+
+	WRITE_ONCE(memcg->lru_gen_reclaim_enabled, true);
 
 	if (!mm_list)
 		return;
