@@ -38,6 +38,7 @@ struct hygon_ccp_dev_wrapper {
 	unsigned int del_flag; /* 0:ccp in ccp_units 1:ccp not in ccp_units */
 };
 
+bool ccp_mdev_is_available(void);
 int ccp_dev_wrapper_list_empty(void);
 struct hygon_ccp_dev_wrapper *hygon_ccp_dev_wrapper_get(struct ccp_device *ccp);
 int ccp_dev_wrapper_alloc(struct pci_dev *pdev);

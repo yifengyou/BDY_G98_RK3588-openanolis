@@ -237,7 +237,7 @@ int ccp_present(void)
 	int ret;
 
 	read_lock_irqsave(&ccp_unit_lock, flags);
-	if (is_vendor_hygon())
+	if (is_vendor_hygon() && ccp_mdev_is_available())
 		ret = ccp_dev_wrapper_list_empty();
 	else
 		ret = list_empty(&ccp_units);
@@ -370,7 +370,7 @@ _Again:
 		}
 	} else {
 		ret = -EINPROGRESS;
-		if (is_vendor_hygon()) {
+		if (is_vendor_hygon() && ccp_mdev_is_available()) {
 			ccp_wrapper = hygon_ccp_dev_wrapper_get(ccp);
 			if (!ccp_wrapper) {
 				spin_unlock_irqrestore(&ccp->cmd_lock, flags);

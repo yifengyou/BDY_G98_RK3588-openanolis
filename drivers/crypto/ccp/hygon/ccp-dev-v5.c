@@ -904,7 +904,8 @@ static void ccp5_irq_bh(unsigned long data)
 			iowrite32(status, cmd_q->reg_interrupt_status);
 
 			if (is_vendor_hygon()) {
-				if (ccp_wrapper->used_mode == _KERNEL_SPACE_USED) {
+				if (!ccp_wrapper ||
+				    ccp_wrapper->used_mode == _KERNEL_SPACE_USED) {
 					cmd_q->int_rcvd = 1;
 					wake_up_interruptible(&cmd_q->int_queue);
 				} else {

@@ -207,6 +207,15 @@ struct mccp_pci_id {
 static LIST_HEAD(ccp_dev_wrapper_list);
 static DEFINE_MUTEX(ccp_dev_wrapper_lock);
 
+/*
+ * Gate for the whole ccp-mdev subsystem. Set once ccp_mdev_init() has
+ * completed successfully, cleared again if a per-device
+ * ccp_dev_wrapper_alloc() ever fails (e.g. IOMMU disabled). While false,
+ * the ccp-mdev entry points return -ENODEV instead of touching a
+ * half-initialized mdev state.
+ */
+static bool ccp_mdev_available;
+
 static int handle_pci_cfg_read(struct mdev_state *mdev_state, int offset,
 				 __le32 *val, int count)
 {
@@ -933,6 +942,9 @@ static int ccp_open(struct inode *inode, struct file *file)
 	struct mdev_state *mdev_state = NULL;
 	int ccp_idx = iminor(inode);
 
+	if (!ccp_mdev_is_available())
+		return -ENODEV;
+
 	mdev_state = kzalloc(sizeof(struct mdev_state), GFP_KERNEL);
 	if (mdev_state == NULL)
 		return -ENOMEM;
@@ -1033,6 +1045,9 @@ static int ccp_share_open(struct inode *inode, struct file *file)
 	struct ccp_private *private = NULL;
 	u32 id;
 	int ret = 0;
+
+	if (!ccp_mdev_is_available())
+		return -ENODEV;
 
 	private = kzalloc(sizeof(*private), GFP_KERNEL);
 	if (!private)
@@ -1839,6 +1854,11 @@ struct hygon_ccp_dev_wrapper *hygon_ccp_dev_wrapper_get(struct ccp_device *ccp)
 	return NULL;
 }
 
+bool ccp_mdev_is_available(void)
+{
+	return READ_ONCE(ccp_mdev_available);
+}
+
 int ccp_dev_wrapper_list_empty(void)
 {
 	return list_empty(&ccp_dev_wrapper_list);
@@ -1855,9 +1875,11 @@ static int ccp_pci_device_create(struct pci_dev *pdev,
 	if (!ccp_mdev_data.domain) {
 		ccp_mdev_data.domain = iommu_paging_domain_alloc(&pdev->dev);
 		if (IS_ERR(ccp_mdev_data.domain)) {
+			int err = PTR_ERR(ccp_mdev_data.domain);
+
 			ccp_mdev_data.domain = NULL;
 			mutex_unlock(&ccp_mdev_data.lock);
-			return -ENOMEM;
+			return err;
 		}
 		ccp_mdev_data.prot = IOMMU_READ | IOMMU_WRITE;
 	}
@@ -1886,8 +1908,15 @@ static int ccp_pci_device_create(struct pci_dev *pdev,
 
 	ret = 0;
 exit:
-	if (ret)
+	if (ret) {
 		bitmap_clear(&ccp_mdev_data.bitmap, i, 1);
+		mutex_lock(&ccp_mdev_data.iommu[i].lock);
+		ccp_mdev_data.iommu[i].pdev = NULL;
+		ccp_mdev_data.iommu[i].wrapper = NULL;
+		ccp_mdev_data.iommu[i].id = 0;
+		ccp_mdev_data.iommu[i].magic = 0;
+		mutex_unlock(&ccp_mdev_data.iommu[i].lock);
+	}
 	return ret;
 }
 
@@ -1926,24 +1955,38 @@ int ccp_dev_wrapper_alloc(struct pci_dev *pdev)
 	if (!ccp)
 		return 0;
 
+	/*
+	 * The mdev subsystem was never fully initialized (e.g. the IOMMU is
+	 * disabled), so there is nothing to wrap for this device. Return
+	 * success so the device itself can still be brought up; the mdev
+	 * entry points are already gated by ccp_mdev_available.
+	 */
+	if (!ccp_mdev_is_available())
+		return 0;
+
 	ccp_wrapper = kzalloc(sizeof(struct hygon_ccp_dev_wrapper), GFP_KERNEL);
-	if (!ccp_wrapper)
+	if (!ccp_wrapper) {
+		WRITE_ONCE(ccp_mdev_available, false);
 		return -ENOMEM;
+	}
 
 	rwlock_init(&ccp_wrapper->q_lock);
 	ccp_wrapper->used_mode = _KERNEL_SPACE_USED;
 	ccp_wrapper->pdev = pdev;
 	ccp_wrapper->cdev = ccp;
-	mutex_lock(&ccp_dev_wrapper_lock);
-	list_add_tail(&ccp_wrapper->entry, &ccp_dev_wrapper_list);
-	mutex_unlock(&ccp_dev_wrapper_lock);
 
 	ret = ccp_pci_device_create(pdev, ccp_wrapper);
 	if (ret) {
 		pr_err("Error: ccp pci device create failed.\n");
 		kfree(ccp_wrapper);
+		WRITE_ONCE(ccp_mdev_available, false);
 		return ret;
 	}
+
+	mutex_lock(&ccp_dev_wrapper_lock);
+	list_add_tail(&ccp_wrapper->entry, &ccp_dev_wrapper_list);
+	mutex_unlock(&ccp_dev_wrapper_lock);
+
 	return 0;
 }
 
@@ -2009,6 +2052,7 @@ int ccp_mdev_init(void)
 
 	memset(&ccp_share, 0x00, sizeof(ccp_share));
 	mutex_init(&ccp_share.lock);
+	WRITE_ONCE(ccp_mdev_available, true);
 	goto done;
 
 fail1:
