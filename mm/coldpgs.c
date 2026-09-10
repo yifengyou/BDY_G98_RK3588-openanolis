@@ -463,7 +463,8 @@ static inline bool folio_is_reclaimable(struct mem_cgroup *memcg,
 			return false;
 
 		/* JIT may use executable anonymous page */
-		if (reclaim_coldpgs_has_flag(filter, FLAG_IGNORE_AGE) &&
+		if (!validate_age &&
+		    reclaim_coldpgs_has_flag(filter, FLAG_IGNORE_AGE) &&
 		    anon_folio_is_exec(folio))
 			return false;
 	}
