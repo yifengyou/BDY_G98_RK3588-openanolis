@@ -1892,6 +1892,9 @@ static int swapin_pmd(struct vm_fault *vmf,
 		 * at the start of that function.
 		 */
 		pte = my___pte_offset_map(vmf->pmd, addr, NULL);
+		/* NULL pte: pmd collapsed to trans_huge; restart the walk. */
+		if (!pte)
+			return -EAGAIN;
 		vmf->orig_pte = *pte;
 		if (!is_swap_pte(*pte)) {
 			pte_unmap(pte);
