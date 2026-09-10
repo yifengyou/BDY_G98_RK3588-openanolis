@@ -79,9 +79,7 @@
 #ifdef CONFIG_PAGECACHE_LIMIT
 #include <linux/pagecache_limit.h>
 #endif
-#ifdef CONFIG_TEXT_UNEVICTABLE
 #include <linux/unevictable.h>
-#endif
 
 #include <trace/events/vmscan.h>
 
