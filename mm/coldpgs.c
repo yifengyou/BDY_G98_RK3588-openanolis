@@ -1858,13 +1858,15 @@ static int swapin_pte(struct vm_fault *vmf)
 	if (signal_pending(current))
 		return -EINTR;
 
-	/* Recheck the vma */
+	/*
+	 * Recheck the vma.  do_swap_page() dropped mmap_lock for
+	 * VM_FAULT_RETRY; retake it and keep it held on all returns so the
+	 * traverser restarts on -EAGAIN without re-acquiring.
+	 */
 	down_read(&mm->mmap_lock);
 	vma = find_vma(mm, vmf->address);
-	if (!vma) {
-		up_read(&mm->mmap_lock);
+	if (!vma)
 		return -EAGAIN;
-	}
 
 	if (vmf->vma != vma || !vma->anon_vma) {
 		vmf->vma = vma;
@@ -2042,9 +2044,16 @@ again:
 			continue;
 		}
 
-		/* Start over in case the vma is gone */
-		if (ret == -EAGAIN)
+		/*
+		 * Start over: mmap_lock is still held, but do_swap_page()
+		 * dropped it before swapin_pte() retook it, so a concurrent
+		 * munmap may have invalidated the cached maple node.  Reset
+		 * the iterator to restart the walk from a fresh search.
+		 */
+		if (ret == -EAGAIN) {
+			vma_iter_set(&vmi, 0);
 			goto again;
+		}
 
 		/* Abort on serious errors OOM/SIGBUS etc */
 		break;
