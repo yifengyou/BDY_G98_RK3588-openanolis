@@ -1022,9 +1022,16 @@ KBUILD_CFLAGS += -fno-builtin-wcslen
 CFLAGS_GCOV	:= -fprofile-arcs -ftest-coverage
 ifdef CONFIG_CC_IS_GCC
 CFLAGS_GCOV	+= -fno-tree-loop-im
+ifndef CONFIG_GCOV_PROFILE_ALL
 # Use atomic counter updates to avoid concurrent-access crashes in GCOV.
 # Only enable if -fprofile-update=prefer-atomic does not introduce new
 # undefined symbols (e.g. libatomic calls that the kernel cannot link).
+# Not used with CONFIG_GCOV_PROFILE_ALL: locked counter updates on every
+# basic block edge make interrupt and softirq paths slower than their
+# own period on many-CPU machines (all CPUs contend for the same shared
+# counter cache lines), so a whole-kernel profiled kernel cannot even
+# boot there.  Concurrent lost updates are acceptable for the test-only
+# full-coverage kernels; targeted profiling keeps the atomic updates.
 CFLAGS_GCOV	+= $(call try-run,\
 	echo 'long long x; void f(void){x++;}' | \
 	$(CC) $(KBUILD_CPPFLAGS) $(KBUILD_CFLAGS) -w -fprofile-arcs \
@@ -1037,6 +1044,7 @@ CFLAGS_GCOV	+= $(call try-run,\
 	$(NM) "$$TMP" | grep ' U ' > "$$TMP.utest" || true ; \
 	cmp -s "$$TMP.ubase" "$$TMP.utest",\
 	-fprofile-update=prefer-atomic)
+endif
 endif
 export CFLAGS_GCOV
 
