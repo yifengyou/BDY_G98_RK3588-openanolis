@@ -5032,9 +5032,15 @@ retry:
 			continue;
 		}
 
-		/* don't add rejected folios to the oldest generation */
+		/*
+		 * See the comments on LRU_REFS_FLAGS.
+		 *
+		 * The rejected folios are never added to the oldest generation,
+		 * so this effectively promotes them by at least one generation.
+		 */
+		set_mask_bits(&folio->flags, LRU_REFS_FLAGS, 0);
 		if (lru_gen_folio_seq(lruvec, folio, false) == min_seq[type])
-			set_mask_bits(&folio->flags, LRU_REFS_FLAGS, BIT(PG_active));
+			folio_set_active(folio);
 	}
 
 	spin_lock_irq(&lruvec->lru_lock);
