@@ -9,6 +9,7 @@
 #include <linux/efi.h>
 #include <linux/pci.h>
 #include <linux/stddef.h>
+#include <linux/ctype.h>
 
 #include <asm/efi.h>
 #include <asm/e820/types.h>
@@ -39,12 +40,185 @@ union sev_memory_acceptance_protocol {
 	} mixed_mode;
 };
 
+/*
+ * setup_data nodes must stay out of memory reserved with "memmap=nn$ss":
+ * those pages may have no direct-map mapping, and the owner of the region
+ * is free to reuse them.  Keep allocations below the lowest reservation.
+ */
+static unsigned long setup_data_alloc_max = ULONG_MAX;
+
+/* like memparse(): parse a number with an optional K/M/G/T/P/E suffix */
+static unsigned long long parse_mem_suffix(const char *cp, char **endp)
+{
+	unsigned long long val = simple_strtoull(cp, endp, 0);
+
+	switch (**endp | 0x20) {
+	case 'k':
+		val <<= 10;
+		(*endp)++;
+		break;
+	case 'm':
+		val <<= 20;
+		(*endp)++;
+		break;
+	case 'g':
+		val <<= 30;
+		(*endp)++;
+		break;
+	case 't':
+		val <<= 40;
+		(*endp)++;
+		break;
+	case 'p':
+		val <<= 50;
+		(*endp)++;
+		break;
+	case 'e':
+		val <<= 60;
+		(*endp)++;
+		break;
+	}
+
+	return val;
+}
+
+static void setup_data_memmap_lowest(const char *cmdline,
+				     unsigned long *lowest)
+{
+	const char *p, *q;
+	bool in_quote = false;
+
+	/* tokenise like the kernel's argument parser: whitespace
+	 * separates arguments, double quotes protect their contents
+	 */
+	p = cmdline;
+	while (*p) {
+		while (isspace(*p))
+			p++;
+		if (!*p)
+			break;
+
+		if (*p == '"') {
+			p++;
+			in_quote = true;
+		}
+
+		if (strncmp(p, "memmap=", sizeof("memmap=") - 1)) {
+			/* not ours: skip this argument */
+			while (*p && (in_quote || !isspace(*p))) {
+				if (*p == '"')
+					in_quote = !in_quote;
+				p++;
+			}
+			continue;
+		}
+
+		p += sizeof("memmap=") - 1;
+		if (*p == '"') {
+			p++;
+			in_quote = !in_quote;
+		}
+
+		/* memmap= may carry a comma-separated list of
+		 * "size$start" regions, e.g. "memmap=1G$8G,4G$4G"
+		 */
+		while (*p && (in_quote || !isspace(*p))) {
+			unsigned long long start;
+			char *end;
+
+			/* skip the size; '$' marks a reserved region */
+			q = p;
+			while (*q && *q != '$' && *q != ',' && *q != '"' &&
+			       !isspace(*q))
+				q++;
+			if (*q == '$' && q != p) {
+				/* the size must parse cleanly */
+				start = parse_mem_suffix(p, &end);
+				if (end == q) {
+					q++;
+					start = parse_mem_suffix(q, &end);
+					/* smaller starts would wrap the
+					 * cap to ULONG_MAX in
+					 * efi_allocate_pages()
+					 */
+					if (end != q &&
+					    start >= EFI_ALLOC_ALIGN &&
+					    start < *lowest)
+						*lowest = start;
+				}
+			}
+			while (*p && *p != ',' &&
+			       (in_quote || !isspace(*p))) {
+				if (*p == '"')
+					in_quote = !in_quote;
+				p++;
+			}
+			if (*p == ',')
+				p++;
+		}
+	}
+}
+
+static void setup_data_alloc_limit(struct boot_params *params)
+{
+	const char *cmdline;
+	unsigned long lowest = ULONG_MAX;
+
+	/* the command line is installed in the zero page by now */
+	cmdline = (const char *)((u64)params->hdr.cmd_line_ptr |
+				 ((u64)params->ext_cmd_line_ptr << 32));
+	if (cmdline)
+		setup_data_memmap_lowest(cmdline, &lowest);
+
+	/* the built-in command line is merged only in
+	 * setup_arch(), after the stub has placed its nodes
+	 */
+#ifdef CONFIG_CMDLINE
+	setup_data_memmap_lowest(CONFIG_CMDLINE, &lowest);
+#endif
+
+	if (lowest != ULONG_MAX)
+		setup_data_alloc_max = lowest - 1;
+}
+
+/* *pages reports how to free the buffer: its page size, or 0
+ * if it came from the firmware pool
+ */
+static efi_status_t setup_data_alloc(unsigned long size, void **buf,
+				      unsigned long *pages)
+{
+	efi_status_t status;
+	unsigned long addr;
+
+	*pages = 0;
+
+	status = efi_allocate_pages(size, &addr, setup_data_alloc_max);
+	if (status == EFI_SUCCESS) {
+		*pages = size;
+		*buf = (void *)addr;
+		return EFI_SUCCESS;
+	}
+
+	/* badly placed setup_data beats none at all */
+	return efi_bs_call(allocate_pool, EFI_LOADER_DATA, size, buf);
+}
+
+/* free_pool() cannot release page allocations */
+static void setup_data_free(void *buf, unsigned long pages)
+{
+	if (pages)
+		efi_free(pages, (unsigned long)buf);
+	else
+		efi_bs_call(free_pool, buf);
+}
+
 static efi_status_t
 preserve_pci_rom_image(efi_pci_io_protocol_t *pci, struct pci_setup_rom **__rom)
 {
 	struct pci_setup_rom *rom = NULL;
 	efi_status_t status;
 	unsigned long size;
+	unsigned long rom_pages;
 	uint64_t romsize;
 	void *romimage;
 
@@ -62,8 +236,7 @@ preserve_pci_rom_image(efi_pci_io_protocol_t *pci, struct pci_setup_rom **__rom)
 
 	size = romsize + sizeof(*rom);
 
-	status = efi_bs_call(allocate_pool, EFI_LOADER_DATA, size,
-			     (void **)&rom);
+	status = setup_data_alloc(size, (void **)&rom, &rom_pages);
 	if (status != EFI_SUCCESS) {
 		efi_err("Failed to allocate memory for 'rom'\n");
 		return status;
@@ -103,7 +276,7 @@ preserve_pci_rom_image(efi_pci_io_protocol_t *pci, struct pci_setup_rom **__rom)
 	return status;
 
 free_struct:
-	efi_bs_call(free_pool, rom);
+	setup_data_free(rom, rom_pages);
 	return status;
 }
 
@@ -180,6 +353,7 @@ static void retrieve_apple_device_properties(struct boot_params *boot_params)
 	efi_guid_t guid = APPLE_PROPERTIES_PROTOCOL_GUID;
 	struct setup_data *data, *new;
 	efi_status_t status;
+	unsigned long new_pages;
 	u32 size = 0;
 	apple_properties_protocol_t *p;
 
@@ -197,9 +371,8 @@ static void retrieve_apple_device_properties(struct boot_params *boot_params)
 		return;
 
 	do {
-		status = efi_bs_call(allocate_pool, EFI_LOADER_DATA,
-				     size + sizeof(struct setup_data),
-				     (void **)&new);
+		status = setup_data_alloc(size + sizeof(struct setup_data),
+					  (void **)&new, &new_pages);
 		if (status != EFI_SUCCESS) {
 			efi_err("Failed to allocate memory for 'properties'\n");
 			return;
@@ -208,7 +381,7 @@ static void retrieve_apple_device_properties(struct boot_params *boot_params)
 		status = efi_call_proto(p, get_all, new->data, &size);
 
 		if (status == EFI_BUFFER_TOO_SMALL)
-			efi_bs_call(free_pool, new);
+			setup_data_free(new, new_pages);
 	} while (status == EFI_BUFFER_TOO_SMALL);
 
 	new->type = SETUP_APPLE_PROPERTIES;
@@ -650,7 +823,8 @@ setup_e820(struct boot_params *params, struct setup_data *e820ext, u32 e820ext_s
 }
 
 static efi_status_t alloc_e820ext(u32 nr_desc, struct setup_data **e820ext,
-				  u32 *e820ext_size)
+				  u32 *e820ext_size,
+				  unsigned long *e820ext_pages)
 {
 	efi_status_t status;
 	unsigned long size;
@@ -659,13 +833,12 @@ static efi_status_t alloc_e820ext(u32 nr_desc, struct setup_data **e820ext,
 		sizeof(struct e820_entry) * nr_desc;
 
 	if (*e820ext) {
-		efi_bs_call(free_pool, *e820ext);
+		setup_data_free(*e820ext, *e820ext_pages);
 		*e820ext = NULL;
 		*e820ext_size = 0;
 	}
 
-	status = efi_bs_call(allocate_pool, EFI_LOADER_DATA, size,
-			     (void **)e820ext);
+	status = setup_data_alloc(size, (void **)e820ext, e820ext_pages);
 	if (status == EFI_SUCCESS)
 		*e820ext_size = size;
 
@@ -674,7 +847,8 @@ static efi_status_t alloc_e820ext(u32 nr_desc, struct setup_data **e820ext,
 
 static efi_status_t allocate_e820(struct boot_params *params,
 				  struct setup_data **e820ext,
-				  u32 *e820ext_size)
+				  u32 *e820ext_size,
+				  unsigned long *e820ext_pages)
 {
 	struct efi_boot_memmap *map;
 	efi_status_t status;
@@ -689,7 +863,8 @@ static efi_status_t allocate_e820(struct boot_params *params,
 		u32 nr_e820ext = nr_desc - ARRAY_SIZE(params->e820_table) +
 				 EFI_MMAP_NR_SLACK_SLOTS;
 
-		status = alloc_e820ext(nr_e820ext, e820ext, e820ext_size);
+		status = alloc_e820ext(nr_e820ext, e820ext, e820ext_size,
+				       e820ext_pages);
 	}
 
 	if (IS_ENABLED(CONFIG_UNACCEPTED_MEMORY) && status == EFI_SUCCESS)
@@ -729,13 +904,15 @@ static efi_status_t exit_boot(struct boot_params *boot_params, void *handle)
 {
 	struct setup_data *e820ext = NULL;
 	__u32 e820ext_size = 0;
+	unsigned long e820ext_pages = 0;
 	efi_status_t status;
 	struct exit_boot_struct priv;
 
 	priv.boot_params	= boot_params;
 	priv.efi		= &boot_params->efi_info;
 
-	status = allocate_e820(boot_params, &e820ext, &e820ext_size);
+	status = allocate_e820(boot_params, &e820ext, &e820ext_size,
+			       &e820ext_pages);
 	if (status != EFI_SUCCESS)
 		return status;
 
@@ -973,6 +1150,8 @@ void __noreturn efi_stub_entry(efi_handle_t handle,
 	efi_retrieve_eventlog();
 
 	setup_graphics(boot_params);
+
+	setup_data_alloc_limit(boot_params);
 
 	setup_efi_pci(boot_params);
 
