@@ -17,7 +17,7 @@ struct alloc_tag *alloc_tag_save(struct alloc_tag *tag)
 	swap(current->alloc_tag, tag);
 	return tag;
 }
-EXPORT_SYMBOL_GPL(alloc_tag_save);
+EXPORT_SYMBOL(alloc_tag_save);
 
 void alloc_tag_restore(struct alloc_tag *tag, struct alloc_tag *old)
 {
@@ -26,7 +26,7 @@ void alloc_tag_restore(struct alloc_tag *tag, struct alloc_tag *old)
 #endif
 	current->alloc_tag = old;
 }
-EXPORT_SYMBOL_GPL(alloc_tag_restore);
+EXPORT_SYMBOL(alloc_tag_restore);
 
 static struct codetag_type *alloc_tag_cttype;
 
