@@ -795,10 +795,32 @@ void mem_cgroup_attach_unevictable(struct cgroup_taskset *tset)
 	}
 }
 
-static inline int schedule_unevict_task(struct task_struct *tsk, void *arg)
+/*
+ * There is no periodic scan, so this allows user to re-pin tasks:
+ * ensure the task is tracked and force ->done = false so the worker re-walks
+ * its address space and pins any text mapped since the last scan.
+ * execute_vm_lock() reverts the previous walk's charge before re-counting,
+ * so a forced re-walk does not double-count.
+ *
+ * Skip tasks whose whole address space is already mlocked (mm->def_flags &
+ * VM_LOCKED): their text is pinned anyway and execute_vm_lock() would only add
+ * and immediately drop such an entry, so tracking them is pure churn.
+ */
+static int schedule_unevict_task(struct task_struct *tsk, void *arg)
 {
+	struct mm_struct *mm = tsk->mm;
+	struct evict_pid_entry *entry;
+
+	if (mm && (mm->def_flags & VM_LOCKED))
+		return 0;
+
 	add_unevict_task(tsk);
-	schedule_delayed_work(&evict_work, HZ);
+
+	mutex_lock(&pid_mutex);
+	entry = lookup_unevict_entry(tsk);
+	if (entry)
+		entry->done = false;
+	mutex_unlock(&pid_mutex);
 
 	return 0;
 }
@@ -822,6 +844,23 @@ static inline void make_all_memcg_evictable(void)
 	}
 }
 
+/*
+ * Force a re-scan of every currently-armed memcg.  Triggered by a write of 1
+ * to the global unevictable switch, giving operators an explicit "re-pin
+ * everything now" action in place of the removed periodic scan.
+ */
+static void unevict_rescan_all_memcgs(void)
+{
+	struct mem_cgroup *memcg;
+
+	for_each_mem_cgroup(memcg) {
+		if (!memcg->allow_unevictable)
+			continue;
+		mem_cgroup_scan_tasks(memcg, schedule_unevict_task, NULL);
+	}
+	schedule_delayed_work(&evict_work, HZ);
+}
+
 void memcg_all_processes_unevict(struct mem_cgroup *memcg, bool enable)
 {
 	struct mem_cgroup *tmp_memcg;
@@ -834,10 +873,12 @@ void memcg_all_processes_unevict(struct mem_cgroup *memcg, bool enable)
 	else
 		tmp_memcg = memcg;
 
-	if (enable)
+	if (enable) {
 		mem_cgroup_scan_tasks(tmp_memcg, schedule_unevict_task, NULL);
-	else
+		schedule_delayed_work(&evict_work, HZ);
+	} else {
 		mem_cgroup_scan_tasks(tmp_memcg, schedule_evict_task, NULL);
+	}
 }
 
 void unevict_task_fork(struct task_struct *tsk)
@@ -884,9 +925,10 @@ static ssize_t unevictable_enabled_store(struct kobject *kobj,
 
 	mutex_lock(&mutex);
 
-	if (!strncmp(buf, "1", 1))
+	if (!strncmp(buf, "1", 1)) {
 		static_branch_enable(&unevictable_enabled_key);
-	else if (!strncmp(buf, "0", 1)) {
+		unevict_rescan_all_memcgs();
+	} else if (!strncmp(buf, "0", 1)) {
 		static_branch_disable(&unevictable_enabled_key);
 		make_all_memcg_evictable();
 	} else
