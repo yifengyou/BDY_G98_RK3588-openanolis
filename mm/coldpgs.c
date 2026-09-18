@@ -1243,19 +1243,19 @@ static unsigned long reclaim_coldslab_from_lru(struct mem_cgroup *memcg,
 
 		ret = reclaim_coldslab_from_shrinker(shrinker, &sc,
 						     nr_to_reclaim);
-		if (ret == SHRINK_STOP) {
-			rcu_read_lock();
-			shrinker_put(shrinker);
+
+		rcu_read_lock();
+		shrinker_put(shrinker);
+
+		if (ret == SHRINK_STOP)
 			continue;
-		}
+
 		nr_reclaimed += ret;
-		if (nr_reclaimed >= nr_to_reclaim) {
-			shrinker_put(shrinker);
+		if (nr_reclaimed >= nr_to_reclaim)
 			goto out;
-		}
 	}
-	rcu_read_unlock();
 out:
+	rcu_read_unlock();
 	return nr_reclaimed;
 }
 
