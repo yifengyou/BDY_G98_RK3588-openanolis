@@ -57,6 +57,8 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/mmap.h>
 
+#include <linux/unevictable.h>
+
 #include "internal.h"
 
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
@@ -2975,8 +2977,10 @@ expanded:
 
 	vma_set_page_prot(vma);
 
-	if (file && (vm_flags & VM_EXEC) && file->f_mapping)
+	if (file && (vm_flags & VM_EXEC) && file->f_mapping) {
 		mapping_set_elf_exec(file->f_mapping);
+		unevict_rearm_current();
+	}
 
 	return addr;
 

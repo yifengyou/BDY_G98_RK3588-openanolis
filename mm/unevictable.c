@@ -900,6 +900,52 @@ void unevict_task_fork(struct task_struct *tsk)
 	schedule_delayed_work(&evict_work, HZ);
 }
 
+/*
+ * Re-arm text locking after a new executable file mapping appears in the
+ * current process (dlopen(), ld.so lazy load, Python/JVM plugin import).
+ *
+ * The initial deferred scan sets ->done, after which execute_vm_lock() skips
+ * the entry; without this the newly mapped library stays on the evictable LRU.
+ */
+void unevict_rearm_current(void)
+{
+	struct evict_pid_entry *entry;
+
+	if (!unevictable_enabled())
+		return;
+
+	/*
+	 * mem_cgroup_from_task() walks current's css and
+	 * is_memcg_unevictable_enabled() dereferences it; both need rcu_read_lock().
+	 */
+	rcu_read_lock();
+	if (!is_memcg_unevictable_enabled(mem_cgroup_from_task(current))) {
+		rcu_read_unlock();
+		return;
+	}
+	rcu_read_unlock();
+
+	if (!base_tree)
+		return;
+
+	mutex_lock(&pid_mutex);
+
+	/*
+	 * memcg-armed processes are always tracked by their thread-group
+	 * leader (both the attach hook and the on-demand rescan use
+	 * CSS_TASK_ITER_PROCS, which iterates leaders only).  A dlopen() from a
+	 * non-main thread (JVM JNI, worker threads) must therefore re-arm the
+	 * *leader's* entry, not the calling thread's TID, which has no entry.
+	 */
+	entry = lookup_unevict_entry(current->group_leader);
+	if (entry && entry->done) {
+		entry->done = false;
+		schedule_delayed_work(&evict_work, HZ);
+	}
+
+	mutex_unlock(&pid_mutex);
+}
+
 static int __init setup_unevictable(char *s)
 {
 	if (!strcmp(s, "1"))
