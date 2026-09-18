@@ -542,6 +542,23 @@ static void execute_vm_lock(struct work_struct *unused)
 				int error;
 #ifdef CONFIG_TEXT_UNEVICTABLE
 				struct mem_cgroup *memcg = get_mem_cgroup_from_mm(mm);
+
+				/*
+				 * This may be a re-scan: execve() cleared ->done
+				 * (self_exec_id changed), or a dlopen() re-armed
+				 * the entry.  The loop below re-counts every
+				 * lockable VMA into result->unevict_size and then
+				 * commits the whole sum to the memcg, so the
+				 * previous round's charge must be reverted first.
+				 * Otherwise each re-scan re-adds the already-locked
+				 * VMAs and the memcg counter grows super-linearly.
+				 */
+				if (result->unevict_size) {
+					if (memcg)
+						memcg_decrease_unevict_size(memcg,
+							result->unevict_size);
+					result->unevict_size = 0;
+				}
 #endif
 
 				for_each_vma(vmi, vma) {
