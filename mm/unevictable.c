@@ -358,10 +358,17 @@ static void unevict_pid(pid_t pid)
 	rcu_read_unlock();
 
 #ifdef CONFIG_TEXT_UNEVICTABLE
+	/*
+	 * mem_cgroup_from_task() walks tsk's css and is_memcg_unevictable_enabled()
+	 * dereferences the returned memcg, so both must run under rcu_read_lock().
+	 */
+	rcu_read_lock();
 	if (is_memcg_unevictable_enabled(mem_cgroup_from_task(tsk))) {
+		rcu_read_unlock();
 		put_task_struct(tsk);
 		return;
 	}
+	rcu_read_unlock();
 #endif
 	add_unevict_task(tsk);
 	put_task_struct(tsk);
@@ -883,17 +890,28 @@ void memcg_all_processes_unevict(struct mem_cgroup *memcg, bool enable)
 
 void unevict_task_fork(struct task_struct *tsk)
 {
-	struct mem_cgroup *memcg = mem_cgroup_from_task(tsk);
+	struct mem_cgroup *memcg;
+	bool allow;
 
 	if (!unevictable_enabled())
 		return;
 
 	/*
+	 * Called from cgroup_post_fork() under cgroup_threadgroup_rwsem, not
+	 * under rcu_read_lock(); mem_cgroup_from_task() walks the task's css so
+	 * it must be wrapped, and the memcg it returns is only stable (and
+	 * ->allow_unevictable only safe to read) while the RCU section is held.
+	 *
 	 * memcg is practically never NULL (every task belongs to at least root
 	 * memcg), but if it were, allow arming — only an explicit
 	 * allow_unevictable=0 should block it.
 	 */
-	if (memcg && !memcg->allow_unevictable)
+	rcu_read_lock();
+	memcg = mem_cgroup_from_task(tsk);
+	allow = !memcg || memcg->allow_unevictable;
+	rcu_read_unlock();
+
+	if (!allow)
 		return;
 
 	add_unevict_task(tsk);
