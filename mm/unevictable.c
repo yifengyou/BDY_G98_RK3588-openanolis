@@ -156,6 +156,15 @@ static void __evict_pid(struct evict_pid_entry *pid)
 						/* Ignore errors, but prev needs fixing up. */
 						if (error)
 							prev = vma;
+					} else {
+						/*
+						 * A skipped VMA is still the predecessor of the
+						 * next lockable one.  Leaving prev stale makes
+						 * mlock_fixup() hand vma_merge() a prev that is
+						 * not adjacent to the range, tripping the
+						 * "addr != curr->vm_start" VM_WARN in vma_merge().
+						 */
+						prev = vma;
 					}
 				}
 				mmap_write_unlock(mm);
@@ -584,6 +593,15 @@ static void execute_vm_lock(struct work_struct *unused)
 #ifdef CONFIG_TEXT_UNEVICTABLE
 						result->unevict_size += vma->vm_end - vma->vm_start;
 #endif
+					} else {
+						/*
+						 * A skipped VMA is still the predecessor of the
+						 * next lockable one.  Leaving prev stale makes
+						 * mlock_fixup() hand vma_merge() a prev that is
+						 * not adjacent to the range, tripping the
+						 * "addr != curr->vm_start" VM_WARN in vma_merge().
+						 */
+						prev = vma;
 					}
 				}
 
