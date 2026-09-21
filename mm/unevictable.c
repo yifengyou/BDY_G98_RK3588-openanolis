@@ -23,6 +23,7 @@
 #include <linux/sched.h>
 #include <linux/proc_fs.h>
 #include <linux/sched/mm.h>
+#include <linux/sched/signal.h>
 #include <linux/swap.h>
 #include <linux/ksm.h>
 #include <linux/pgtable.h>
@@ -912,6 +913,24 @@ void unevict_task_fork(struct task_struct *tsk)
 	bool allow;
 
 	if (!unevictable_enabled())
+		return;
+
+	/*
+	 * memcg-armed processes are only ever tracked by their thread-group
+	 * leader: the .attach hook uses cgroup_taskset_for_each_leader() and the
+	 * on-demand rescan uses CSS_TASK_ITER_PROCS, both leader-only.  Unlike the
+	 * 5.10 livepatch (which had no .fork hook and relied solely on those two
+	 * leader-only entry points), this build wires a real cgroup .fork callback,
+	 * and cgroup_post_fork() fires it for every clone -- including CLONE_THREAD
+	 * children.  Filter to the leader here so a new thread does not get its own
+	 * entry: threads share the leader's mm (and its already-locked text), and a
+	 * per-thread entry would make execute_vm_lock() re-add the shared text span
+	 * once per thread, inflating memcg->unevictable_size N-fold and prematurely
+	 * tripping the percent cap.  A forked child *process* is itself a leader, so
+	 * "lock children at fork" is preserved; the exec call site (fs/exec.c, after
+	 * de_thread()) always passes the leader too, so this is a no-op there.
+	 */
+	if (!thread_group_leader(tsk))
 		return;
 
 	/*
