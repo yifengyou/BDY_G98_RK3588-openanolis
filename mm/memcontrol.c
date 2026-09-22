@@ -8983,6 +8983,18 @@ static struct cftype memory_files[] = {
 		.read_u64 = memcg_pgtable_misplaced_read,
 	},
 #endif
+#ifdef CONFIG_TEXT_UNEVICTABLE
+	{
+		.name = "allow_text_unevictable",
+		.read_u64 = mem_cgroup_allow_unevictable_read,
+		.write_u64 = mem_cgroup_allow_unevictable_write,
+	},
+	{
+		.name = "text_unevictable_percent",
+		.read_u64 = mem_cgroup_unevictable_percent_read,
+		.write_u64 = mem_cgroup_unevictable_percent_write,
+	},
+#endif
 #ifdef CONFIG_ASYNC_FORK
 	{
 		.name = "async_fork",
