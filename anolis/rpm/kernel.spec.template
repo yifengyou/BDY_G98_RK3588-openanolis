@@ -286,7 +286,7 @@ BuildRequires: libbabeltrace-devel
 BuildRequires: libtraceevent-devel
 BuildRequires: numactl-devel
 %ifarch aarch64
-BuildRequires: opencsd-devel >= 1.0.0
+BuildRequires: opencsd-devel >= 1.2.1
 %endif
 %endif
 %if %{with_tools}
@@ -1238,6 +1238,11 @@ BuildKernel %make_target %kernel_image 64k-debug
 
 %if %{with_up}
 BuildKernel %make_target %kernel_image
+%endif
+
+# Enable CoreSight trace decoding (link libopencsd) on aarch64
+%ifarch aarch64
+%define perf_build_extra_opts CORESIGHT=1
 %endif
 
 %ifarch sw_64
