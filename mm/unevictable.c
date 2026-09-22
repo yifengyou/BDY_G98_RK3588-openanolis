@@ -351,21 +351,35 @@ static void add_unevict_task(struct task_struct *tsk)
 	}
 }
 
-static void unevict_pid(pid_t pid)
+static int unevict_pid(pid_t pid)
 {
 	struct task_struct *tsk;
 
 	if (pid <= 0)
-		return;
+		return -EINVAL;
 
 	rcu_read_lock();
 	tsk = find_task_by_pid_ns(pid, task_active_pid_ns(current));
 	if (!tsk) {
 		rcu_read_unlock();
-		return;
+		return -ESRCH;
 	}
 	get_task_struct(tsk);
 	rcu_read_unlock();
+
+	/*
+	 * add_pid only accepts thread-group leaders (whole processes).  A bare
+	 * TID would key the entry on a single thread, but both the deferred
+	 * worker scan and the memcg arm/rescan paths track processes by their
+	 * leader (CSS_TASK_ITER_PROCS / cgroup_taskset_for_each_leader), so a
+	 * non-leader entry cannot be scanned or re-armed reliably.  Reject it.
+	 */
+	if (!thread_group_leader(tsk)) {
+		WARN_ONCE(1, "unevictable: add_pid rejected non-leader tid %d (tgid %d); pass the process pid instead\n",
+			  task_pid_nr(tsk), task_tgid_nr(tsk));
+		put_task_struct(tsk);
+		return -EINVAL;
+	}
 
 #ifdef CONFIG_TEXT_UNEVICTABLE
 	/*
@@ -376,12 +390,14 @@ static void unevict_pid(pid_t pid)
 	if (is_memcg_unevictable_enabled(mem_cgroup_from_task(tsk))) {
 		rcu_read_unlock();
 		put_task_struct(tsk);
-		return;
+		return 0;
 	}
 	rcu_read_unlock();
 #endif
 	add_unevict_task(tsk);
 	put_task_struct(tsk);
+
+	return 0;
 }
 
 struct add_pid_seq_context {
@@ -666,7 +682,11 @@ static ssize_t proc_write_add_pid(struct file *file,
 		ret = -EINVAL;
 		goto out;
 	} else {
-		unevict_pid((pid_t)pid);
+		err = unevict_pid((pid_t)pid);
+		if (err) {
+			ret = err;
+			goto out;
+		}
 		schedule_delayed_work(&evict_work, HZ);
 	}
 
