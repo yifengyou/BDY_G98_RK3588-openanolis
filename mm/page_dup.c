@@ -208,7 +208,11 @@ static bool delete_from_dup_folios(struct folio *folio, bool locked, bool ignore
 			}
 			folio_unlock(tmp_folio);
 		}
+	}
 
+	try_to_unmap_flush();
+
+	list_for_each_entry_safe(tmp_folio, next_folio, list, lru) {
 		__delete_from_dup_folios(tmp_folio, folio);
 		folio_put(tmp_folio);
 	}
