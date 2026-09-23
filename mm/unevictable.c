@@ -854,11 +854,18 @@ void mem_cgroup_attach_unevictable(struct cgroup_taskset *tset)
  */
 static int schedule_unevict_task(struct task_struct *tsk, void *arg)
 {
-	struct mm_struct *mm = tsk->mm;
+	struct mm_struct *mm;
 	struct evict_pid_entry *entry;
 
-	if (mm && (mm->def_flags & VM_LOCKED))
-		return 0;
+	/* def_flags & VM_LOCKED: mlockall(MCL_FUTURE) pined everything. */
+	mm = get_task_mm(tsk);
+	if (mm) {
+		bool locked = mm->def_flags & VM_LOCKED;
+
+		mmput(mm);
+		if (locked)
+			return 0;
+	}
 
 	add_unevict_task(tsk);
 
