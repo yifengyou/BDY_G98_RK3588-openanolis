@@ -17553,8 +17553,14 @@ int sched_group_set_slice(struct task_group *tg, u64 slice_us)
 
 		guard(rq_lock_irqsave)(rq);
 		for_each_sched_entity(se) {
+			u64 se_slice = cfs_rq_slice(group_cfs_rq(se));
+
+			/* An empty cfs_rq without a configured slice returns U64_MAX. */
+			if (se_slice == U64_MAX)
+				break;
+
 			se->custom_slice = 1;
-			se->slice = cfs_rq_slice(group_cfs_rq(se));
+			se->slice = se_slice;
 
 			if (!se->on_rq)
 				break;
