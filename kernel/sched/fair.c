@@ -1008,9 +1008,17 @@ static inline u64 cfs_rq_max_slice(struct cfs_rq *cfs_rq)
 }
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
+static DEFINE_STATIC_KEY_FALSE(sched_group_slice_enabled);
+
 static inline u64 cfs_rq_slice(struct cfs_rq *cfs_rq)
 {
-	return cfs_rq->tg->slice ? : cfs_rq_min_slice(cfs_rq);
+	u64 slice;
+
+	if (!static_branch_unlikely(&sched_group_slice_enabled))
+		return cfs_rq_min_slice(cfs_rq);
+
+	slice = READ_ONCE(cfs_rq->tg->slice);
+	return slice ? : cfs_rq_min_slice(cfs_rq);
 }
 #else
 static inline u64 cfs_rq_slice(struct cfs_rq *cfs_rq)
@@ -17206,6 +17214,7 @@ void init_tg_cfs_entry(struct task_group *tg, struct cfs_rq *cfs_rq,
 }
 
 static DEFINE_MUTEX(shares_mutex);
+static DEFINE_MUTEX(sched_group_slice_mutex);
 
 static int __sched_group_set_shares(struct task_group *tg, unsigned long shares)
 {
@@ -17531,6 +17540,7 @@ int sched_group_set_priority(struct task_group *tg, s64 priority)
 int sched_group_set_slice(struct task_group *tg, u64 slice_us)
 {
 	u64 slice = 0;
+	u64 old_slice;
 	int i;
 
 	if (slice_us > U64_MAX / NSEC_PER_USEC)
@@ -17542,10 +17552,18 @@ int sched_group_set_slice(struct task_group *tg, u64 slice_us)
 				NSEC_PER_MSEC * 100);	/* HZ = 100 / 10 */
 	}
 
-	if (slice == tg->slice)
-		return 0;
+	mutex_lock(&sched_group_slice_mutex);
+	old_slice = tg->slice;
+	if (slice == old_slice)
+		goto unlock;
 
-	tg->slice = slice;
+	if (!old_slice && slice)
+		static_branch_inc(&sched_group_slice_enabled);
+
+	WRITE_ONCE(tg->slice, slice);
+
+	if (old_slice && !slice)
+		static_branch_dec(&sched_group_slice_enabled);
 
 	for_each_possible_cpu(i) {
 		struct sched_entity *se = tg->se[i];
@@ -17570,7 +17588,19 @@ int sched_group_set_slice(struct task_group *tg, u64 slice_us)
 		}
 	}
 
+unlock:
+	mutex_unlock(&sched_group_slice_mutex);
 	return 0;
+}
+
+void sched_group_release_slice(struct task_group *tg)
+{
+	mutex_lock(&sched_group_slice_mutex);
+	if (tg->slice) {
+		WRITE_ONCE(tg->slice, 0);
+		static_branch_dec(&sched_group_slice_enabled);
+	}
+	mutex_unlock(&sched_group_slice_mutex);
 }
 
 #else /* CONFIG_FAIR_GROUP_SCHED */
