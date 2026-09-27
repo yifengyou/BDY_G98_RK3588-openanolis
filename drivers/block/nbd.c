@@ -63,6 +63,7 @@ struct nbd_sock {
 	int fallback_index;
 	int cookie;
 	struct work_struct work;
+	struct request *partial_req;
 };
 
 struct recv_thread_args {
@@ -604,12 +605,24 @@ static void nbd_sched_pending_work(struct nbd_device *nbd,
 {
 	struct request *req = blk_mq_rq_from_pdu(cmd);
 
-	/* pending work should be scheduled only once */
-	WARN_ON_ONCE(test_bit(NBD_CMD_PARTIAL_SEND, &cmd->flags));
-
 	nsock->pending = req;
 	nsock->sent = sent;
-	set_bit(NBD_CMD_PARTIAL_SEND, &cmd->flags);
+
+	/*
+	 * Already armed: this is nbd_pending_cmd_work() re-entering because the
+	 * resumed send was interrupted again.  Its work is still running, so
+	 * just refresh the resume point above and let its loop pick it up
+	 * instead of taking another config reference and requeueing the work.
+	 */
+	if (test_and_set_bit(NBD_CMD_PARTIAL_SEND, &cmd->flags))
+		return;
+
+	/*
+	 * nbd_mark_nsock_dead() clears ->pending, so the work function cannot
+	 * rely on it to find the request it owns.  Keep a copy that only it
+	 * clears.
+	 */
+	nsock->partial_req = req;
 	refcount_inc(&nbd->config_refs);
 	schedule_work(&nsock->work);
 }
@@ -783,7 +796,7 @@ requeue:
 static void nbd_pending_cmd_work(struct work_struct *work)
 {
 	struct nbd_sock *nsock = container_of(work, struct nbd_sock, work);
-	struct request *req = nsock->pending;
+	struct request *req = nsock->partial_req;
 	struct nbd_cmd *cmd = blk_mq_rq_to_pdu(req);
 	struct nbd_device *nbd = cmd->nbd;
 	unsigned long deadline = READ_ONCE(req->deadline);
@@ -796,6 +809,26 @@ static void nbd_pending_cmd_work(struct work_struct *work)
 		goto out;
 
 	mutex_lock(&nsock->tx_lock);
+	/*
+	 * nbd_mark_nsock_dead() can tear the socket down between schedule_work()
+	 * and here, and it clears ->pending and ->sent.  The header is already
+	 * on the wire so this request can never be answered; fail it rather than
+	 * resuming a send on a socket that is gone.
+	 */
+	if (!nsock->pending) {
+		/*
+		 * NBD_CMD_INFLIGHT is only set once nbd_send_cmd() has put the
+		 * whole request out, so neither recv_work() nor nbd_clear_req()
+		 * will complete this one: both skip a request without the bit.
+		 * Teardown runs nbd_clear_que() right after sock_shutdown() and
+		 * nothing cancels this work in between, so this is the only place
+		 * left that can complete it, and it has to, or the tag never
+		 * comes back.
+		 */
+		cmd->status = BLK_STS_IOERR;
+		blk_mq_complete_request(req);
+		goto unlock;
+	}
 	while (true) {
 		nbd_send_cmd(nbd, cmd, cmd->index);
 		if (!nsock->pending)
@@ -818,10 +851,25 @@ static void nbd_pending_cmd_work(struct work_struct *work)
 		msleep(wait_ms);
 		wait_ms *= 2;
 	}
+unlock:
+	/*
+	 * Clear it before dropping tx_lock.  nbd_sched_pending_work() arms
+	 * partial_req under tx_lock, so a command blocked there arms its own
+	 * request as soon as this unlock lets it in.
+	 */
+	nsock->partial_req = NULL;
 	mutex_unlock(&nsock->tx_lock);
 	clear_bit(NBD_CMD_PARTIAL_SEND, &cmd->flags);
 out:
 	mutex_unlock(&cmd->lock);
+	/*
+	 * Both failure branches complete the request above, while cmd->lock is
+	 * still held, rather than deferring it to here.  The request owns its
+	 * tag until blk_mq_end_request() releases it, and a new owner takes
+	 * cmd->lock in nbd_queue_rq() before it can reach cmd, so the
+	 * clear_bit() above cannot land in a recycled one.  nbd outlives all of
+	 * it, since nbd_config_put() below is what drops the reference.
+	 */
 	nbd_config_put(nbd);
 }
 
@@ -1279,6 +1327,7 @@ static int nbd_add_socket(struct nbd_device *nbd, unsigned long arg,
 	nsock->pending = NULL;
 	nsock->sent = 0;
 	nsock->cookie = 0;
+	nsock->partial_req = NULL;
 	INIT_WORK(&nsock->work, nbd_pending_cmd_work);
 	socks[config->num_connections++] = nsock;
 	atomic_inc(&config->live_connections);
