@@ -454,6 +454,20 @@ static inline bool flow_rule_match_key(const struct flow_rule *rule,
 	return dissector_uses_key(rule->match.dissector, key);
 }
 
+static inline bool flow_rule_is_supp_control_flags(const u32 supp_flags,
+						   const u32 ctrl_flags,
+						   struct netlink_ext_ack *extack)
+{
+	if (likely((ctrl_flags & ~supp_flags) == 0))
+		return true;
+
+	NL_SET_ERR_MSG_FMT_MOD(extack,
+			       "Unsupported match on control.flags %#x",
+			       ctrl_flags);
+
+	return false;
+}
+
 struct flow_stats {
 	u64	pkts;
 	u64	bytes;
