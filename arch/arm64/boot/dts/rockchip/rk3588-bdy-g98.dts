@@ -732,6 +732,7 @@
 
 &rknpu_mmu {
 	status = "okay";
+	power-domains = <&power RK3588_PD_NPUTOP>;
 };
 
 /* ===== GPU (Mali-G610) ===== */

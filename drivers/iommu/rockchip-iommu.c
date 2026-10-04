@@ -1328,7 +1328,7 @@ static void rk_iommu_shutdown(struct platform_device *pdev)
 		devm_free_irq(iommu->dev, irq, iommu);
 	}
 
-	pm_runtime_force_suspend(&pdev->dev);
+	pm_runtime_disable(&pdev->dev);
 }
 
 static int __maybe_unused rk_iommu_suspend(struct device *dev)
