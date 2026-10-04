@@ -23,6 +23,7 @@
 #include <drm/drm_simple_kms_helper.h>
 
 #include "rockchip_drm_drv.h"
+#include "rockchip_drm_vop.h"
 
 #include "inno_hdmi.h"
 
