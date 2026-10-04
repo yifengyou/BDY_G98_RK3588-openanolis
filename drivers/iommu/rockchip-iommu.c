@@ -925,6 +925,7 @@ static void rk_iommu_disable(struct rk_iommu *iommu)
 	}
 	rk_iommu_disable_stall(iommu);
 	clk_bulk_disable(iommu->num_clocks, iommu->clocks);
+
 	iommu->enabled = false;
 }
 
@@ -961,13 +962,13 @@ static int rk_iommu_enable(struct rk_iommu *iommu)
 	}
 
 	ret = rk_iommu_enable_paging(iommu);
-	if (!ret)
-		iommu->enabled = true;
 
 out_disable_stall:
 	rk_iommu_disable_stall(iommu);
 out_disable_clocks:
 	clk_bulk_disable(iommu->num_clocks, iommu->clocks);
+	if (!ret)
+		iommu->enabled = true;
 	return ret;
 }
 
@@ -1335,7 +1336,10 @@ static int __maybe_unused rk_iommu_suspend(struct device *dev)
 {
 	struct rk_iommu *iommu = dev_get_drvdata(dev);
 
-	if (iommu->domain == &rk_identity_domain || !iommu->enabled)
+	if (!iommu->enabled)
+		return 0;
+
+	if (iommu->domain == &rk_identity_domain)
 		return 0;
 
 	rk_iommu_disable(iommu);
@@ -1346,7 +1350,10 @@ static int __maybe_unused rk_iommu_resume(struct device *dev)
 {
 	struct rk_iommu *iommu = dev_get_drvdata(dev);
 
-	if (iommu->domain == &rk_identity_domain || !iommu->enabled)
+	if (!iommu->enabled)
+		return 0;
+
+	if (iommu->domain == &rk_identity_domain)
 		return 0;
 
 	return rk_iommu_enable(iommu);
