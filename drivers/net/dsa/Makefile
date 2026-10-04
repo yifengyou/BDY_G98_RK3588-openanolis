@@ -26,3 +26,4 @@ obj-y				+= qca/
 obj-y				+= realtek/
 obj-y				+= sja1105/
 obj-y				+= xrs700x/
+obj-$(CONFIG_NET_DSA_YT921X)	+= yt921x.o
