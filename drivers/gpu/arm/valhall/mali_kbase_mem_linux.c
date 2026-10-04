@@ -3257,8 +3257,15 @@ static void kbasep_add_mm_counter(struct mm_struct *mm, int member, long value)
 #if (KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE)
 	/* To avoid the build breakage due to the type change in rss_stat,
 	 * we inline here the equivalent of 'add_mm_counter()' from linux kernel V6.2.
+	 * Anolis kernel uses percpu_counter_initialized() guard before
+	 * percpu_counter_add(), so replicate that safety check here.
 	 */
-	percpu_counter_add(&mm->rss_stat[member], value);
+	struct percpu_counter *fbc = &mm->rss_stat[member];
+
+	if (percpu_counter_initialized(fbc))
+		percpu_counter_add(fbc, value);
+	else
+		percpu_counter_atomic_add(fbc, value);
 #elif (KERNEL_VERSION(5, 5, 0) <= LINUX_VERSION_CODE)
 	/* To avoid the build breakage due to an unexported kernel symbol 'mm_trace_rss_stat',
 	 * we inline here the equivalent of 'add_mm_counter()' from linux kernel V5.5.
