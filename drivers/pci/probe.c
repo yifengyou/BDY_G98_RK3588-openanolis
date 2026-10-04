@@ -2661,6 +2661,7 @@ static void pci_set_msi_domain(struct pci_dev *dev)
 	dev_set_msi_domain(&dev->dev, d);
 }
 
+#ifdef CONFIG_ACPI_NUMA
 static void get_gi_node_by_bdf(struct device *dev, unsigned int bdf)
 {
 	int nid;
@@ -2691,6 +2692,9 @@ static void pci_set_gi_node(struct device *dev)
 	bdf_value = pci_bdf_to_int(dev);
 	get_gi_node_by_bdf(dev, bdf_value);
 }
+#else
+static void pci_set_gi_node(struct device *dev) {}
+#endif
 
 void pci_device_add(struct pci_dev *dev, struct pci_bus *bus)
 {
