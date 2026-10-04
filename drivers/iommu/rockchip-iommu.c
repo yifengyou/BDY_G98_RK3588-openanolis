@@ -1272,10 +1272,6 @@ static int rk_iommu_probe(struct platform_device *pdev)
 	if (err)
 		goto err_unprepare_clocks;
 
-	err = iommu_device_register(&iommu->iommu, &rk_iommu_ops, dev);
-	if (err)
-		goto err_remove_sysfs;
-
 	/*
 	 * Use the first registered IOMMU device for domain to use with DMA
 	 * API, since a domain might not physically correspond to a single
@@ -1283,6 +1279,10 @@ static int rk_iommu_probe(struct platform_device *pdev)
 	 */
 	if (!dma_dev)
 		dma_dev = &pdev->dev;
+
+	err = iommu_device_register(&iommu->iommu, &rk_iommu_ops, dev);
+	if (err)
+		goto err_remove_sysfs;
 
 	pm_runtime_enable(dev);
 

@@ -6208,6 +6208,7 @@ static inline u64 cfs_rq_last_update_time(struct cfs_rq *cfs_rq)
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 DEFINE_PER_CPU(struct cpumask, cpus_allowed_alt);
+static unsigned long cpu_load(struct rq *rq);
 /* Decide which node for @tg to run on*/
 void set_group_prefer_node(struct task_group *tg)
 {
