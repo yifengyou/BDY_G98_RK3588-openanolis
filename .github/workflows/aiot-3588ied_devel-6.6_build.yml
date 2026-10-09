@@ -1,11 +1,11 @@
-name: bdy g98 OpenAnolis linux-6.6
+name: aiot-3588ied devel-6.6
 
 on:
   repository_dispatch:
   workflow_dispatch:
   push:
     branches:
-      - bdy-g98_devel-6.6
+      - aiot-3588ied_devel-6.6
 
 env:
   TZ: Asia/Shanghai
@@ -69,14 +69,14 @@ jobs:
       - name: Upload Kernel to Release
         uses: ncipollo/release-action@main
         with:
-          tag: OpenAnolis_linux-6.6
+          tag: OpenAnolis_devel-6.6
           artifacts: ./release/*
           allowUpdates: true
           removeArtifacts: false
           replacesArtifacts: true
           token: ${{ secrets.GITHUB_TOKEN }}
           body: |
-            # BDY G98 OpenAnolis linux-6.6
+            # aiot-3588ied devel-6.6
 
             ## 重要提示
             > **此发布为中间构建产物，非完整固件！**
