@@ -2,8 +2,8 @@
 
 set -ex
 WORKDIR=`pwd`
-DEFCONFIG="aiot_3588ied_defconfig"
-DTB="rk3588-bdy-g98.dtb"
+DEFCONFIG="aiot_3588a_defconfig"
+TARGET_DTB="rk3588-aiot-3588a.dtb"
 
 
 mkdir -p ${WORKDIR}/release

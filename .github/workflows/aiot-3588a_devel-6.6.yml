@@ -1,11 +1,11 @@
-name: aiot-3588ied devel-6.6
+name: aiot-3588a devel-6.6
 
 on:
   repository_dispatch:
   workflow_dispatch:
   push:
     branches:
-      - aiot-3588ied_devel-6.6
+      - aiot-3588a_devel-6.6
 
 env:
   TZ: Asia/Shanghai
@@ -76,7 +76,7 @@ jobs:
           replacesArtifacts: true
           token: ${{ secrets.GITHUB_TOKEN }}
           body: |
-            # aiot-3588ied devel-6.6
+            # aiot-3588a devel-6.6
 
             ## 重要提示
             > **此发布为中间构建产物，非完整固件！**
