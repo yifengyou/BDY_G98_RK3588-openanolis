@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - bdy-g98
+      - bdy-g98_devel-6.6
 
 env:
   TZ: Asia/Shanghai
