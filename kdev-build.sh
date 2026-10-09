@@ -2,15 +2,17 @@
 
 set -ex
 WORKDIR=`pwd`
-mkdir -p ${WORKDIR}/release
+DEFCONFIG="bdy_g98_rk3588_defconfig"
+TARGET_DTB="rk3588-bdy-g98.dtb"
 
+mkdir -p ${WORKDIR}/release
 # build kernel Image
 make ARCH=arm64 \
   CROSS_COMPILE=aarch64-linux-gnu- \
   KBUILD_BUILD_USER="builder" \
   KBUILD_BUILD_HOST="kdevbuilder" \
   LOCALVERSION=-kdev \
-  bdy_g98_rk3588_defconfig
+  ${DEFCONFIG}
 
 # 校验内核版本号是否包含自定义后缀 -kdev
 KVER=$(make LOCALVERSION=-kdev kernelrelease)
@@ -29,8 +31,8 @@ make ARCH=arm64 \
   KBUILD_BUILD_USER="builder" \
   KBUILD_BUILD_HOST="kdevbuilder" \
   LOCALVERSION=-kdev \
-  rockchip/rk3588-bdy-g98.dtb
-ls -alh arch/arm64/boot/dts/rockchip/rk3588-bdy-g98.dtb
+  rockchip/${TARGET_DTB}
+ls -alh arch/arm64/boot/dts/rockchip/${TARGET_DTB}
 
 # 编译内核主镜像 (Image)，抑制未使用函数警告
 make ARCH=arm64 \
@@ -78,7 +80,7 @@ sha256sum arch/arm64/boot/Image
 cp -a arch/arm64/boot/Image "${WORKDIR}/release/Image-${KVER}"
 
 # --- 设备树 ---
-DTB_PATH="./arch/arm64/boot/dts/rockchip/rk3588-bdy-g98.dtb"
+DTB_PATH="./arch/arm64/boot/dts/rockchip/${TARGET_DTB}"
 ls -alh "${DTB_PATH}"
 sha256sum "${DTB_PATH}"
 cp -a "${DTB_PATH}" "${WORKDIR}/release/"

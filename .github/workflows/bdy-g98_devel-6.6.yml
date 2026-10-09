@@ -1,4 +1,4 @@
-name: bdy g98 OpenAnolis linux-6.6
+name: bdy g98 devel-6.6
 
 on:
   repository_dispatch:
@@ -69,14 +69,13 @@ jobs:
       - name: Upload Kernel to Release
         uses: ncipollo/release-action@main
         with:
-          tag: OpenAnolis_linux-6.6
+          tag: bdy-g98_devel-6.6
           artifacts: ./release/*
           allowUpdates: true
           removeArtifacts: false
           replacesArtifacts: true
           token: ${{ secrets.GITHUB_TOKEN }}
           body: |
-            # BDY G98 OpenAnolis linux-6.6
 
             ## 重要提示
             > **此发布为中间构建产物，非完整固件！**
@@ -86,3 +85,4 @@ jobs:
             - **按原样提供**：镜像不作任何保证，使用风险自负
             - **无官方关联**：主板厂家和瑞星微无任何关联、无任何商业关联
             - **安全提示**：请及时更新补丁、修改默认密码、配置防火墙
+
